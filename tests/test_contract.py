@@ -10,7 +10,14 @@ from collections.abc import Callable
 
 import pytest
 
-from kidsbench.adapters import FullHistoryAdapter, NoMemoryAdapter, OracleAdapter
+from kidsbench.adapters import (
+    FullHistoryAdapter,
+    GraphitiAdapter,
+    Mem0Adapter,
+    MemoryOSAdapter,
+    NoMemoryAdapter,
+    OracleAdapter,
+)
 from kidsbench.contract import (
     STANDARD_FEATURES,
     AdapterError,
@@ -79,10 +86,150 @@ def make_oracle() -> OracleAdapter:
     return adapter
 
 
+# ---- Wave 1 第三方 adapter 的契约 mock 工厂 ----
+
+class _ContractFakeMem0Client:
+    """Mem0 mock client，用于契约测试不需要装 mem0ai。"""
+
+    def __init__(self) -> None:
+        self._store: dict[str, list[dict]] = {}
+        self._counter = 0
+
+    def add(self, *, messages, user_id, metadata=None):
+        self._counter += 1
+        mem_id = f"m_{self._counter:03d}"
+        text = messages[0]["content"] if isinstance(messages, list) else str(messages)
+        self._store.setdefault(user_id, []).append(
+            {"id": mem_id, "memory": text, "score": 0.9, "metadata": dict(metadata or {})}
+        )
+        return {"results": [{"id": mem_id, "event": "ADD"}]}
+
+    def search(self, *, query, user_id, limit=5):
+        rows = self._store.get(user_id, [])
+        filtered = [r for r in rows if query and query in r.get("memory", "")]
+        if not filtered:
+            filtered = list(rows)
+        return filtered[:limit]
+
+    def delete_all(self, *, user_id):
+        self._store[user_id] = []
+
+    def get_all(self, *, user_id, limit=1):
+        return self._store.get(user_id, [])[:limit]
+
+
+def make_mem0() -> Mem0Adapter:
+    """契约测试用 Mock Mem0 client，不需要装 mem0ai。"""
+    client = _ContractFakeMem0Client()
+
+    class _ContractMem0Adapter(Mem0Adapter):
+        @staticmethod
+        def _create_client(config):
+            return client
+
+    return _ContractMem0Adapter(disable_telemetry=True)
+
+
+class _ContractFakeMemoryManager:
+    """MemoryOS mock manager，用于契约测试。"""
+
+    def __init__(self, user_id: str) -> None:
+        self.user_id = user_id
+        self._items: list[dict] = []
+        self.short = self._items
+        self.mid: list = []
+        self.long: list = []
+
+    def write(self, user_input: str, system_response: str, metadata: dict):
+        content = user_input or system_response
+        item = {
+            "id": f"{self.user_id}_m_{len(self._items) + 1}",
+            "text": content,
+            "score": 1.0,
+            "metadata": dict(metadata),
+            "ts": metadata.get("ts"),
+        }
+        self._items.append(item)
+        return {"id": item["id"]}
+
+    def retrieve(self, query: str, context_window: int):
+        _ = query
+        return list(reversed(self._items))[:context_window]
+
+    def consolidate(self):
+        return {"consolidated_count": len(self._items), "usage": {"total_tokens": 8}}
+
+    def reset_all(self) -> None:
+        self._items.clear()
+
+
+def make_memoryos() -> MemoryOSAdapter:
+    """契约测试用 Mock MemoryManager 工厂。"""
+    return MemoryOSAdapter(
+        config={"memory_manager_factory": lambda user_id, **_: _ContractFakeMemoryManager(user_id)}
+    )
+
+
+class _GraphitiContractClient:
+    """Graphiti mock client（async），用于契约测试。"""
+
+    def __init__(self) -> None:
+        self._sessions: dict[str, list[dict]] = {}
+        self._counter = 0
+
+    async def add_episode(self, name: str, episode_body: str, metadata: dict):
+        self._counter += 1
+        memory_id = f"g_{self._counter:03d}"
+        self._sessions.setdefault(name, []).append(
+            {"id": memory_id, "text": episode_body, "metadata": dict(metadata)}
+        )
+        return {"entity_id": memory_id}
+
+    async def search(self, query: str, search_config):
+        items: list[dict] = []
+        for rows in self._sessions.values():
+            for row in rows:
+                text = str(row["text"])
+                if query and query not in text:
+                    continue
+                items.append(
+                    {
+                        "entity_id": str(row["id"]),
+                        "name": text,
+                        "rrf_score": 0.9,
+                        "metadata": dict(row["metadata"]),
+                    }
+                )
+        return {"items": items}
+
+    async def delete_session(self, name: str):
+        self._sessions.pop(name, None)
+        return {"ok": True}
+
+    async def flush_pending(self):
+        return {"ok": True}
+
+    async def get_stats(self, user_id: str):
+        node_count = sum(len(rows) for rows in self._sessions.values())
+        return {"node_count": node_count, "edge_count": node_count * 2, "episode_count": node_count}
+
+
+def make_graphiti() -> GraphitiAdapter:
+    """契约测试用 Mock Graphiti client（backend=neo4j 跳过 AVX2 检测）。"""
+    return GraphitiAdapter(
+        backend="neo4j",
+        uri="bolt://localhost:7687",
+        config={"client": _GraphitiContractClient()},
+    )
+
+
 ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "nomemory": make_nomemory,
     "fullhistory": make_fullhistory,
     "oracle": make_oracle,
+    "mem0": make_mem0,
+    "memoryos": make_memoryos,
+    "graphiti": make_graphiti,
 }
 
 

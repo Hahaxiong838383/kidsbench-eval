@@ -24,7 +24,7 @@ volumes:
 services:
   # 向量数据库：Mem0 / Cognee / 通用 vector 检索
   qdrant:
-    image: qdrant/qdrant:v1.10.0
+    image: docker.1ms.run/qdrant/qdrant:v1.10.0   # 国内镜像源（避开 docker.io 墙）
     container_name: kidsbench-qdrant
     restart: unless-stopped
     ports:
@@ -43,7 +43,7 @@ services:
 
   # 图数据库：Graphiti / Cognee KG（比 Neo4j 轻 ~3x，单容器 ~200MB vs Neo4j ~1GB）
   falkordb:
-    image: falkordb/falkordb:latest
+    image: docker.1ms.run/falkordb/falkordb:latest   # 国内镜像源
     container_name: kidsbench-falkordb
     restart: unless-stopped
     ports:
@@ -62,7 +62,7 @@ services:
   # 缓存 / sidecar 持久化 / 限流计数
   # 端口 6380 避开 falkordb 占的 6379
   redis-cache:
-    image: redis:7-alpine
+    image: docker.1ms.run/library/redis:7-alpine   # 国内镜像源
     container_name: kidsbench-redis
     restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]

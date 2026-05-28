@@ -42,6 +42,9 @@ packages = ["src/kidsbench"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
+markers = [
+    "integration: 需要真实第三方 SDK / 服务（mem0ai / memoryos-pypi / graphiti-core / FalkorDB 等）",
+]
 
 [tool.ruff]
 line-length = 100

@@ -12,11 +12,19 @@
 - HermesAdapter     自研系统，待对接
 """
 from .fullhistory import FullHistoryAdapter
+from .graphiti_adapter import GraphitiAdapter
+from .mem0_adapter import Mem0Adapter
+from .memoryos_adapter import MemoryOSAdapter
 from .nomemory import NoMemoryAdapter
 from .oracle import OracleAdapter
 
 __all__ = [
+    # 基线（不依赖第三方）
     "FullHistoryAdapter",
     "NoMemoryAdapter",
     "OracleAdapter",
+    # Wave 1 第三方（按需 extras 安装）
+    "Mem0Adapter",
+    "MemoryOSAdapter",
+    "GraphitiAdapter",
 ]
