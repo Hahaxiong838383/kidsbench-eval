@@ -89,4 +89,6 @@ STANDARD_FEATURES = [
     "consolidate_explicit",    # 是否有显式 consolidate（语义固化）入口，区别于 flush
     "batch_write_native",      # 是否原生支持 batch_write（而非循环 write）
     "write_semantic_sync",     # write 返回时是否已可被 read 查到（防异步固化时序幻觉）
+    # gemini Wave 1 review finding A.1: Consolidation 元数据黑洞
+    "lineage_after_consolidate",  # 固化后 turn_id 溯源是否保持（多数候选系统 lossy）
 ]

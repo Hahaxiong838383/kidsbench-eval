@@ -115,6 +115,7 @@ class OracleAdapter(MemoryAdapter):
             "consolidate_explicit": ("unsupported", "天花板基线无需固化"),
             "batch_write_native": ("declared", "默认实现循环调 write，无优化"),
             "write_semantic_sync": ("native", "同步写内存，立即可 read"),
+            "lineage_after_consolidate": ("native", "Oracle 无固化，gold 即真值"),
         }
         caps = [
             Capability(feature=f, level=lvl, note=note)  # type: ignore[arg-type]

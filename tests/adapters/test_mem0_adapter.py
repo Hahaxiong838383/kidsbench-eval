@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from kidsbench.adapters.mem0_adapter import Mem0Adapter
-from kidsbench.contract import ReadOpts, Turn
+from kidsbench.contract import STANDARD_FEATURES, ReadOpts, Turn
 from kidsbench.middleware import EmbeddingService, SidecarStore
 
 
@@ -154,9 +154,9 @@ def test_capability_profile_complete_and_lane(adapter: Mem0Adapter) -> None:
     profile = adapter.get_capability_profile()
 
     assert profile.adapter_name == "mem0"
-    assert len(profile.capabilities) == 11
+    assert len(profile.capabilities) == len(STANDARD_FEATURES)
     features = {cap.feature for cap in profile.capabilities}
-    assert len(features) == 11
+    assert len(features) == len(STANDARD_FEATURES)
 
     assert profile.lane_compatibility["A1"] == "compatible"
     assert profile.lane_compatibility["A2"] == "compatible"

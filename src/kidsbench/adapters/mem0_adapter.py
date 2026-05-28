@@ -49,6 +49,10 @@ _ERROR_MAPPING = {
     "mem0.errors.RateLimitError": RateLimitError,
     "mem0.errors.AuthenticationError": NetworkError,
     "mem0.errors.APIConnectionError": NetworkError,
+    # gemini Wave 1 review finding Mem0.2: SQLite 并发锁未捕获导致评测随机崩
+    "sqlite3.OperationalError": NetworkError,
+    "sqlite3.IntegrityError": NetworkError,
+    "sqlite3.DatabaseError": NetworkError,
 }
 
 
@@ -157,23 +161,55 @@ class Mem0Adapter(MemoryAdapter):
     @track_metrics(method="batch_write")
     @wrap_errors(mapping=_ERROR_MAPPING)
     def batch_write(self, user_id: str, turns: list[Turn]) -> list[WriteStats]:
+        """批量灌入 turns。
+
+        重要权衡（gemini Wave 1 review finding A.4 + Mem0.3）：
+        - mem0 的 add() 接受 list messages 但 metadata 是 request-level（整批共用）
+        - 如果一次性塞 list，metadata.turn_id 会污染所有 memory → source_turn_ids 反查失真
+        - 因此**牺牲 batch 性能换取 1:1 准确映射**：循环单次 add 每个 turn
+
+        若候选系统的 ablation 要求"原生 batch 性能"对比，可在 config 里设
+        ``batch_mode="lossy_native"`` 切回单次批量调用（牺牲溯源准确性）。
+        """
         if not turns:
             return []
         if not user_id:
             raise AdapterError("user_id must not be empty")
 
-        messages = [{"role": t.role, "content": t.text} for t in turns]
-        turn_meta = [
-            {
+        batch_mode = self._config.get("batch_mode", "preserve_lineage")
+
+        if batch_mode == "lossy_native":
+            # 牺牲溯源准确性换性能（明确声明 lossy）
+            return self._batch_write_lossy(user_id, turns)
+
+        # 默认：循环单次 add 保 1:1 映射准确性
+        stats: list[WriteStats] = []
+        all_memory_ids: list[str] = []
+        for t in turns:
+            payload = [{"role": t.role, "content": t.text}]
+            metadata = {
                 "turn_id": t.turn_id,
                 "ts": t.timestamp,
                 "session_id": t.session_id,
             }
-            for t in turns
-        ]
+            result = self.client.add(messages=payload, user_id=user_id, metadata=metadata)
+            mem_ids = self._extract_memory_ids(result)
+            self._sidecar.put(user_id, t.turn_id, mem_ids)
+            all_memory_ids.extend(mem_ids)
+            stats.append(WriteStats(success=True, raw={"memory_ids": mem_ids}))
 
-        # mem0.add supports list messages in a single call, but metadata is request-level.
-        # We write one batch marker and preserve per-turn links in sidecar.
+        self._logger.info(
+            "mem0_batch_write",
+            user_id=user_id,
+            turn_count=len(turns),
+            memory_count=len(all_memory_ids),
+            batch_mode="preserve_lineage",
+        )
+        return stats
+
+    def _batch_write_lossy(self, user_id: str, turns: list[Turn]) -> list[WriteStats]:
+        """一次 add(list) 性能优先，但 turn_id 溯源 lossy。"""
+        messages = [{"role": t.role, "content": t.text} for t in turns]
         result = self.client.add(
             messages=messages,
             user_id=user_id,
@@ -181,27 +217,19 @@ class Mem0Adapter(MemoryAdapter):
                 "batch": True,
                 "turn_count": len(turns),
                 "turn_ids": [t.turn_id for t in turns],
-                "turn_meta": turn_meta,
             },
         )
-
         memory_ids = self._extract_memory_ids(result)
-        if len(memory_ids) == len(turns):
-            for turn, memory_id in zip(turns, memory_ids, strict=True):
-                self._sidecar.put(user_id, turn.turn_id, [memory_id])
-        else:
-            for turn in turns:
-                self._sidecar.put(user_id, turn.turn_id, memory_ids)
-
-        self._batch_write_native = True
-        stats = [WriteStats(success=True, raw={"memory_ids": memory_ids}) for _ in turns]
-        self._logger.info(
-            "mem0_batch_write",
+        # lossy 模式：所有 turn_id 关联整批 memory_ids（评测时会扣分但 capability 已声明）
+        for t in turns:
+            self._sidecar.put(user_id, t.turn_id, memory_ids)
+        self._logger.warn(
+            "mem0_batch_write_lossy",
             user_id=user_id,
             turn_count=len(turns),
-            memory_count=len(memory_ids),
+            warning="metadata 是 request-level，turn_id 溯源 lossy",
         )
-        return stats
+        return [WriteStats(success=True, raw={"memory_ids": memory_ids, "lossy": True}) for _ in turns]
 
     @track_metrics(method="read")
     @wrap_errors(mapping=_ERROR_MAPPING)
@@ -325,6 +353,7 @@ class Mem0Adapter(MemoryAdapter):
             "consolidate_explicit": ("native", "mem0 在 write 时同步做 consolidation"),
             "batch_write_native": (batch_level, batch_note),
             "write_semantic_sync": ("native", "返回时事实已可查"),
+            "lineage_after_consolidate": ("declared", "Mem0 consolidation 合并相似事实时丢失旧 metadata.turn_id（gemini A.1 known issue）"),
         }
 
         caps = [

@@ -39,8 +39,11 @@ from ..middleware import (
 )
 
 _OPENAI_PROVIDER = "openai"
-_DEFAULT_RATE = 8.0
-_DEFAULT_BURST = 8
+# gemini Wave 1 review Finding MemoryOS.2 修复后的默认值
+# rate: 每秒 1000 tokens（约 dashscope/OpenAI 自由计划的 1/10）
+# burst: 5000（允许评测初始化一次性灌 ~10 个长 turn）
+_DEFAULT_RATE = 1000.0
+_DEFAULT_BURST = 5000
 _RETRYABLE_STATUS_PATTERN = re.compile(r"\b(429|500|502|503|504)\b")
 
 
@@ -117,7 +120,9 @@ class MemoryOSAdapter(MemoryAdapter):
     )
     def write(self, user_id: str, turn: Turn) -> WriteStats:
         self._require_user(user_id)
-        self._acquire_rate_limit(tokens=1)
+        # gemini Wave 1 review Finding MemoryOS.2: 不能硬编码 tokens=1，
+        # 大文本写入时会瞬间打爆 OpenAI 限流。按 text 长度估算（≈ 4 字符/token）。
+        self._acquire_rate_limit(tokens=self._estimate_tokens(turn.text))
 
         mm = self._get_manager(user_id)
         write_result = mm.write(
@@ -245,8 +250,12 @@ class MemoryOSAdapter(MemoryAdapter):
         self._require_user(user_id)
         mm = self._get_manager(user_id)
         retries = 3
+        # consolidate 内部会调多次 LLM（短/中/长层各一次），真正的 token 限流在 LLMClient 层做
+        # 这里 acquire 只是触发计数，给 GlobalRateLimiter 一个"调用次数"信号
+        # 真实 token 限流由内部 LLM 调用各自 acquire（按实际 prompt/response 长度）
+        consolidate_tokens = self._config.get("consolidate_acquire_tokens", 8)
         for attempt in range(retries):
-            self._acquire_rate_limit(tokens=1)
+            self._acquire_rate_limit(tokens=consolidate_tokens)
             try:
                 result = mm.consolidate()
                 self._last_consolidate_at[user_id] = get_clock().now()
@@ -317,6 +326,7 @@ class MemoryOSAdapter(MemoryAdapter):
             "consolidate_explicit": ("native", "显式 consolidate API，跟 flush 严格分离"),
             "batch_write_native": ("declared", "无原生 batch，默认循环 write"),
             "write_semantic_sync": ("wrapped", "STM 同步可查；LTM 需 consolidate 后才有"),
+            "lineage_after_consolidate": ("declared", "consolidate 抽象归纳 LTM 时丢失 turn_id（gemini A.1 known issue）"),
         }
         caps = [
             Capability(feature=feature, level=level, note=note)  # type: ignore[arg-type]
@@ -392,6 +402,17 @@ class MemoryOSAdapter(MemoryAdapter):
                 rate=float(self._config.get("openai_rate_per_sec", _DEFAULT_RATE)),
                 burst=int(self._config.get("openai_burst", _DEFAULT_BURST)),
             )
+
+    @staticmethod
+    def _estimate_tokens(text: str) -> int:
+        """估算 LLM token 消耗：英文 ≈ 4 字符/token，中文 ≈ 1.5 字符/token。
+
+        gemini review Finding MemoryOS.2 修复：避免硬编码 tokens=1。
+        """
+        if not text:
+            return 1
+        # 中文比例高的话 token/char 更接近 1，这里用保守估算（偏高）
+        return max(1, len(text) // 3)
 
     def _acquire_rate_limit(self, *, tokens: int) -> None:
         if not self._rate_limiter.try_acquire(_OPENAI_PROVIDER, tokens=tokens):

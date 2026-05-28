@@ -349,6 +349,7 @@ class GraphitiAdapter(MemoryAdapter):
             "consolidate_explicit": ("declared", "write 阶段 Saga 已做消歧合并，无独立强制流程"),
             "batch_write_native": batch_level,
             "write_semantic_sync": ("native", "Saga 写入返回后可检索"),
+            "lineage_after_consolidate": ("wrapped", "Episode→Entity 合并时部分丢失，靠 sidecar + 图回溯兜底"),
         }
         caps = [
             Capability(feature=f, level=lvl, note=note)  # type: ignore[arg-type]
@@ -462,9 +463,32 @@ class GraphitiAdapter(MemoryAdapter):
         return not records
 
     def _run(self, result: Any) -> Any:
-        if inspect.isawaitable(result):
-            return asyncio.run(result)
-        return result
+        """同步桥接 async/sync 双模式 client。
+
+        gemini Wave 1 review finding Graphiti.1 修复：在已有 event loop 的环境
+        （pytest-asyncio / FastAPI / Jupyter / Harness 内部 loop）调 asyncio.run
+        会抛 RuntimeError。本实现按优先级降级：
+        1. 同步 result：直接返
+        2. 有 running loop：用 run_coroutine_threadsafe 投递到当前 loop
+        3. 无 loop：asyncio.run 起新 loop
+        4. 兜底：新建独立线程跑新 loop（避免 nest_asyncio 依赖）
+        """
+        if not inspect.isawaitable(result):
+            return result
+
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+
+        if loop is not None and loop.is_running():
+            # 已在 event loop 中（pytest-asyncio / FastAPI / Jupyter）
+            # 用独立线程 + 新 loop 兜底（最稳妥，无第三方依赖）
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(asyncio.run, result).result()
+
+        return asyncio.run(result)
 
     def _acquire_provider_token(self, provider: str, tokens: int) -> None:
         if self._rate_limiter is None:

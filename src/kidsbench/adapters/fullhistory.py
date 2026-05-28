@@ -103,6 +103,7 @@ class FullHistoryAdapter(MemoryAdapter):
             "consolidate_explicit": ("unsupported", "对照基线不做语义固化"),
             "batch_write_native": ("declared", "默认实现循环调 write，无优化"),
             "write_semantic_sync": ("native", "同步写内存，立即可 read"),
+            "lineage_after_consolidate": ("native", "FullHistory 不做固化，turn 原样保留"),
         }
         caps = [
             Capability(feature=f, level=lvl, note=note)  # type: ignore[arg-type]
