@@ -78,10 +78,16 @@ class NoMemoryAdapter(MemoryAdapter):
             Capability(feature=f, level="unsupported", note="NoMemory baseline")
             for f in STANDARD_FEATURES
         ]
-        # 无任何内部 LLM/embed，所有 Lane 都兼容
+        # 无任何内部 LLM/embed，所有 Lane 都兼容（含 A3 本地 LLM、C 无 LLM 档）
         return CapabilityProfile(
             adapter_name=self.name,
             capabilities=caps,
-            lane_compatibility={"A1": "compatible", "A2": "compatible", "B": "compatible"},
+            lane_compatibility={
+                "A1": "compatible",
+                "A2": "compatible",
+                "A3": "compatible",
+                "B": "compatible",
+                "C": "compatible",
+            },
             lane_notes={},
         )

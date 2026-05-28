@@ -14,6 +14,7 @@ from typing import Any
 from .capability import CapabilityProfile
 from .types import (
     ClearStats,
+    ConsolidateStats,
     Dependency,
     FlushStats,
     ReadOpts,
@@ -61,10 +62,22 @@ class MemoryAdapter(ABC):
 
     @abstractmethod
     def write(self, user_id: str, turn: Turn) -> WriteStats:
-        """灌入一轮对话。
+        """灌入一轮对话（语义同步）。
 
-        Adapter 必须以某种方式保留 turn.turn_id 的可追溯性（natively 或 wrapped）。
+        语义同步要求：
+        - 返回时该 turn 的基本提取必须完成（写完立即 read 必须能查到，否则评测会误判"写入失败"）
+        - 异步索引构建（如 KG 合并）可放后台，但 sidecar 必须同步建好
+
+        Adapter 必须以某种方式保留 turn.turn_id 的可追溯性（natively 或 wrapped 或 sidecar）。
         """
+
+    def batch_write(self, user_id: str, turns: list[Turn]) -> list[WriteStats]:
+        """批量灌入（默认实现 = 循环 write，子类可覆写实现真正的批量优化）。
+
+        评测初始化时灌入历史会一次性调几十~几百 turns，子类有 batch_add 等批量 API 时
+        强烈建议覆写本方法以减少 LLM/Embedding API 调用次数。
+        """
+        return [self.write(user_id, t) for t in turns]
 
     @abstractmethod
     def read(self, user_id: str, query: str, opts: ReadOpts | None = None) -> ReadResult:
@@ -84,10 +97,24 @@ class MemoryAdapter(ABC):
 
     @abstractmethod
     def flush(self, user_id: str) -> FlushStats:
-        """强制把 write 缓冲全部落盘 + 索引就绪。
+        """强制把 write 缓冲全部落盘 + 索引就绪（轻量，无 LLM 调用）。
 
         在 write 批量灌完 → read 之前必须调，防止异步索引未到位导致召回空。
+        和 consolidate 的区别：flush 只等索引就绪（毫秒级），不做 LLM 语义整理。
         """
+
+    def consolidate(self, user_id: str) -> ConsolidateStats:
+        """语义固化：调 LLM 做 short→mid→long 整理 / KG 合并 / 实体消歧（秒级，吃 token）。
+
+        默认实现 = no-op（返回 success=True, latency=0），适用于不做语义固化的 adapter
+        （NoMemory / Mem0 等已经在 write 时同步做完的）。
+
+        MemoryOS / Graphiti / Cognee 这种有显式 consolidate pipeline 的必须覆写。
+
+        评测协议：Harness 在 batch_write 后 → flush → consolidate → read，三步必须分别可触发，
+        因为 consolidate 耗时 10-30 秒，不能放在 write/flush 里硬等。
+        """
+        return ConsolidateStats(success=True, latency_ms=0.0, consolidated_count=0)
 
     @abstractmethod
     def get_dependencies(self) -> list[Dependency]:

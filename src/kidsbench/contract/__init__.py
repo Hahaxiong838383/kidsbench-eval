@@ -12,6 +12,7 @@ from .capability import (
 )
 from .types import (
     ClearStats,
+    ConsolidateStats,
     Dependency,
     FlushStats,
     Memory,
@@ -42,5 +43,6 @@ __all__ = [
     "ReadOpts",
     "ClearStats",
     "FlushStats",
+    "ConsolidateStats",
     "Dependency",
 ]

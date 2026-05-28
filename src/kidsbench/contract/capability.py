@@ -35,6 +35,13 @@ LaneCompat = Literal["compatible", "incompatible", "degraded"]
 - compatible:   可在该 Lane 下跑评测，结果可比
 - incompatible: 该 Lane 跑不了（如内部锁 GPT-4 跑不了 Lane A1=锁 Qwen）
 - degraded:     能跑但需要降级（如 fallback 兜底，结果带星号标记）
+
+Lane 档位（v3 评测协议 + 实操扩展）：
+- A1:  锁 Qwen3-Max 内外层（国产旗舰统一档）
+- A2:  锁 GPT-4 内外层（国外旗舰统一档）
+- A3:  锁本地轻量 LLM（如 Qwen-2.5-7B-Instruct，K12 本地部署场景）
+- B:   自由内层（每家自己锁的 LLM 不动）+ 锁外层
+- C:   无 LLM 纯检索型（Adapter 完全不依赖任何 LLM，如纯 BM25/vector store baseline）
 """
 
 
@@ -72,11 +79,14 @@ class CapabilityProfile:
 # 评测协议要求的标准能力清单（Harness 据此判断是否能跑 + 怎么补齐扣分）
 STANDARD_FEATURES = [
     "physical_clear",          # clear 是否真物理删除（防幽灵记忆残留）
-    "turn_id_traceback",       # 能否追溯召回记忆的 source_turn_ids
+    "turn_id_traceback",       # 能否追溯召回记忆的 source_turn_ids（多对多关系也算）
     "cognitive_type_filter",   # 能否按 Episodic/Semantic/Procedural 过滤召回
     "score_normalized",        # score 是否归一化到 [0,1]
     "concurrent_safe",         # 并发 user_id 是否真隔离
     "cost_accounting",         # 能否报告 token 消耗
-    "embedding_export",        # 能否导出记忆文本的 embedding（辅路用）
+    "embedding_export",        # 能否导出记忆文本的 embedding（辅路用，统一空间需 Harness 跑）
     "flush_blocking",          # flush 是否真等待索引就绪（防异步未到位）
+    "consolidate_explicit",    # 是否有显式 consolidate（语义固化）入口，区别于 flush
+    "batch_write_native",      # 是否原生支持 batch_write（而非循环 write）
+    "write_semantic_sync",     # write 返回时是否已可被 read 查到（防异步固化时序幻觉）
 ]

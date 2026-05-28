@@ -87,6 +87,26 @@ class FlushStats:
 
 
 @dataclass(frozen=True)
+class ConsolidateStats:
+    """consolidate（语义固化）的统计。
+
+    跟 flush（落盘）的区别：
+    - flush:       同步索引就绪，~毫秒，无 LLM 调用
+    - consolidate: 调 LLM 做 short→mid→long 语义整理 / KG 合并 / 实体消歧，~秒级
+    """
+
+    success: bool = True
+    latency_ms: float = 0.0
+    cost_token: int = 0
+    """consolidate 通常吃大量 token，必须报告。"""
+
+    consolidated_count: int = 0
+    """本次固化合并/抽取的记忆数。"""
+
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class Dependency:
     """启动前 preflight 自检 + Lane 适配性判定的依赖描述。
 
@@ -126,5 +146,8 @@ class ReadOpts:
     score_threshold: float = 0.0
     cognitive_filter: list[str] | None = None
     """限定召回类型：['episodic'] / ['semantic'] / None=不限。"""
+
+    include_provenance: bool = True
+    """是否强制返回 source_turn_ids（评测验证默认 True；性能场景可设 False 减少图回溯）。"""
 
     extra: dict[str, Any] = field(default_factory=dict)

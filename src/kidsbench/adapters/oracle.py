@@ -111,6 +111,9 @@ class OracleAdapter(MemoryAdapter):
             "cost_accounting": ("unsupported", "无 LLM 调用"),
             "embedding_export": ("unsupported", "本基线不做 embedding"),
             "flush_blocking": ("native", "同步内存"),
+            "consolidate_explicit": ("unsupported", "天花板基线无需固化"),
+            "batch_write_native": ("declared", "默认实现循环调 write，无优化"),
+            "write_semantic_sync": ("native", "同步写内存，立即可 read"),
         }
         caps = [
             Capability(feature=f, level=lvl, note=note)  # type: ignore[arg-type]
@@ -121,6 +124,12 @@ class OracleAdapter(MemoryAdapter):
         return CapabilityProfile(
             adapter_name=self.name,
             capabilities=caps,
-            lane_compatibility={"A1": "compatible", "A2": "compatible", "B": "compatible"},
+            lane_compatibility={
+                "A1": "compatible",
+                "A2": "compatible",
+                "A3": "compatible",
+                "B": "compatible",
+                "C": "compatible",
+            },
             lane_notes={},
         )

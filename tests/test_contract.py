@@ -171,16 +171,32 @@ class TestContract:
         )
 
     def test_lane_compatibility_declared(self, adapter_name: str) -> None:
-        """capability_profile 必须声明 A1/A2/B 三档 Lane 适配性（防 Lane 调度盲打）。"""
+        """capability_profile 必须声明全部 5 档 Lane 适配性（A1/A2/A3/B/C）。"""
         adapter = ADAPTER_FACTORIES[adapter_name]()
         profile = adapter.get_capability_profile()
-        for lane in ("A1", "A2", "B"):
+        for lane in ("A1", "A2", "A3", "B", "C"):
             assert lane in profile.lane_compatibility, (
                 f"{adapter_name}: lane_compatibility 缺 '{lane}'，必须声明 compatible/incompatible/degraded"
             )
             assert profile.lane_compatibility[lane] in ("compatible", "incompatible", "degraded"), (
                 f"{adapter_name}: lane_compatibility[{lane}] 取值非法"
             )
+
+    def test_batch_write_works(self, adapter_name: str) -> None:
+        """batch_write 默认实现必须工作（循环调 write）。"""
+        adapter = ADAPTER_FACTORIES[adapter_name]()
+        turns = make_turns()
+        results = adapter.batch_write("u_test", turns)
+        assert len(results) == len(turns)
+        assert all(r.success for r in results)
+
+    def test_consolidate_returns_stats(self, adapter_name: str) -> None:
+        """consolidate 必须返回 ConsolidateStats（默认 no-op 也算）。"""
+        adapter = ADAPTER_FACTORIES[adapter_name]()
+        stats = adapter.consolidate("u_test")
+        assert stats.success
+        assert stats.latency_ms >= 0
+        assert stats.consolidated_count >= 0
 
     def test_concurrent_user_isolation(self, adapter_name: str) -> None:
         """user_id 隔离锚点：u1 的数据不能污染 u2 的召回。"""
