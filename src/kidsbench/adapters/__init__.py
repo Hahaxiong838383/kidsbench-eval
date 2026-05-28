@@ -16,7 +16,7 @@ from .nomemory import NoMemoryAdapter
 from .oracle import OracleAdapter
 
 __all__ = [
-    "NoMemoryAdapter",
     "FullHistoryAdapter",
+    "NoMemoryAdapter",
     "OracleAdapter",
 ]

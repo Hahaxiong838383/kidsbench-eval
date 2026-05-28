@@ -50,7 +50,7 @@ class FullHistoryAdapter(MemoryAdapter):
         self._store.setdefault(user_id, []).append(turn)
         return WriteStats(success=True, latency_ms=(time.time() - t0) * 1000)
 
-    def read(self, user_id: str, query: str, opts: ReadOpts | None = None) -> ReadResult:  # noqa: ARG002
+    def read(self, user_id: str, query: str, opts: ReadOpts | None = None) -> ReadResult:
         if not user_id:
             raise AdapterError("user_id must not be empty")
         t0 = time.time()
@@ -77,7 +77,7 @@ class FullHistoryAdapter(MemoryAdapter):
         deleted = len(self._store.pop(user_id, []))
         return ClearStats(success=True, latency_ms=(time.time() - t0) * 1000, deleted_count=deleted)
 
-    def flush(self, user_id: str) -> FlushStats:  # noqa: ARG002
+    def flush(self, user_id: str) -> FlushStats:
         return FlushStats(success=True, latency_ms=0.0)  # 同步内存，无需 flush
 
     def get_dependencies(self) -> list[Dependency]:

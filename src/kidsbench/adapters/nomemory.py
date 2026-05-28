@@ -60,7 +60,7 @@ class NoMemoryAdapter(MemoryAdapter):
         self._read_count.pop(user_id, None)
         return ClearStats(success=True, latency_ms=(time.time() - t0) * 1000, deleted_count=deleted)
 
-    def flush(self, user_id: str) -> FlushStats:  # noqa: ARG002
+    def flush(self, user_id: str) -> FlushStats:
         return FlushStats(success=True, latency_ms=0.0)
 
     def get_dependencies(self) -> list[Dependency]:

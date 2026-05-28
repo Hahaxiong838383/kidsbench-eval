@@ -8,7 +8,8 @@ read 时根据题库标注的 gold_memory_ids 完美召回对应 turn 文本。
 from __future__ import annotations
 
 import time
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from ..contract import (
     STANDARD_FEATURES,
@@ -57,7 +58,7 @@ class OracleAdapter(MemoryAdapter):
         self._store.setdefault(user_id, {})[turn.turn_id] = turn
         return WriteStats(success=True, latency_ms=(time.time() - t0) * 1000)
 
-    def read(self, user_id: str, query: str, opts: ReadOpts | None = None) -> ReadResult:  # noqa: ARG002
+    def read(self, user_id: str, query: str, opts: ReadOpts | None = None) -> ReadResult:
         if not user_id:
             raise AdapterError("user_id must not be empty")
         if self._gold_lookup is None:
@@ -89,7 +90,7 @@ class OracleAdapter(MemoryAdapter):
         deleted = len(self._store.pop(user_id, {}))
         return ClearStats(success=True, latency_ms=(time.time() - t0) * 1000, deleted_count=deleted)
 
-    def flush(self, user_id: str) -> FlushStats:  # noqa: ARG002
+    def flush(self, user_id: str) -> FlushStats:
         return FlushStats(success=True, latency_ms=0.0)
 
     def get_dependencies(self) -> list[Dependency]:

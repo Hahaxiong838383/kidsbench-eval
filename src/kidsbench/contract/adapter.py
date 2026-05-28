@@ -144,10 +144,10 @@ class MemoryAdapter(ABC):
         try:
             deps = self.get_dependencies()
             return all(not d.required or self._check_dep(d) for d in deps)
-        except Exception:  # noqa: BLE001
+        except Exception:
             return False
 
-    def _check_dep(self, dep: Dependency) -> bool:  # noqa: ARG002
+    def _check_dep(self, dep: Dependency) -> bool:
         """默认实现：直接返回 True，子类按需实现具体检查。"""
         return True
 

@@ -49,4 +49,11 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "RUF"]
-ignore = ["E501"]
+ignore = [
+    "E501",   # line too long（中文 docstring 容易超）
+    "RUF001", # 全角字符串字符（中文 docstring 必有）
+    "RUF002", # 全角 docstring 字符
+    "RUF003", # 全角注释字符
+    "RUF012", # 类属性可变默认值（paradigm_tags 是有意的类常量）
+    "RUF022", # __all__ 字母排序（按语义分组更易读）
+]

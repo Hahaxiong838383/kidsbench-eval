@@ -39,8 +39,9 @@ _EXCEPTION_CACHE: dict[str, type[BaseException] | None] = {}
 
 def _resolve_exception(path: str) -> type[BaseException] | None:
     """Resolve exception class from dotted import path lazily."""
-    if path in _EXCEPTION_CACHE:
-        return _EXCEPTION_CACHE[path]
+    cached = _EXCEPTION_CACHE.get(path)
+    if cached is not None or path in _EXCEPTION_CACHE:
+        return cached
 
     module_path, _, attr = path.rpartition(".")
     if not module_path or not attr:
@@ -49,7 +50,7 @@ def _resolve_exception(path: str) -> type[BaseException] | None:
 
     try:
         module = importlib.import_module(module_path)
-    except Exception:  # noqa: BLE001
+    except Exception:
         _EXCEPTION_CACHE[path] = None
         return None
 
@@ -63,17 +64,14 @@ def _resolve_exception(path: str) -> type[BaseException] | None:
 
 
 def wrap_errors(mapping: dict[str, type[AdapterError]]) -> Callable[[_F], _F]:
-    """Map third-party exceptions to ``AdapterError`` subclasses.
-
-    ``mapping`` uses lazy string paths as keys to avoid import-time hard dependency.
-    """
+    """Map third-party exceptions to ``AdapterError`` subclasses."""
 
     def decorator(func: _F) -> _F:
         @wraps(func)
         def wrapped(*args: Any, **kwargs: Any) -> Any:
             try:
                 return func(*args, **kwargs)
-            except Exception as err:  # noqa: BLE001
+            except Exception as err:
                 for path, target in mapping.items():
                     exc_type = _resolve_exception(path)
                     if exc_type is not None and isinstance(err, exc_type):

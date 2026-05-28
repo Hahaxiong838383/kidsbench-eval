@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
+from collections.abc import Callable
 
 import pytest
 
@@ -18,7 +18,6 @@ from kidsbench.contract import (
     ReadOpts,
     Turn,
 )
-
 
 # ---- 测试用例工厂 ----
 
@@ -73,7 +72,7 @@ def make_oracle() -> OracleAdapter:
 
     def lookup(user_id: str, query: str) -> list[str]:
         candidates = ["t_001", "t_003"] if "团子" in query else []
-        store = adapter._store.get(user_id, {})  # noqa: SLF001
+        store = adapter._store.get(user_id, {})
         return [tid for tid in candidates if tid in store]
 
     adapter.set_gold_lookup(lookup)
