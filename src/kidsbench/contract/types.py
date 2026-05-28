@@ -88,15 +88,34 @@ class FlushStats:
 
 @dataclass(frozen=True)
 class Dependency:
-    """启动前 preflight 自检的依赖描述。"""
+    """启动前 preflight 自检 + Lane 适配性判定的依赖描述。
+
+    kind 语义：
+    - service:        外部服务（docker container / 远端 API host）
+    - api:            云端 API（OpenAI / dashscope 等）
+    - model:          模型权重文件（本地加载）
+    - env:            环境变量
+    - internal_llm:   Adapter 内部调用的 LLM（Lane 判定关键）
+    - internal_embed: Adapter 内部用的 embedding（Lane 判定关键）
+    """
 
     name: str
-    """例：'qdrant' / 'openai_api' / 'bge-m3'。"""
+    """例：'qdrant' / 'gpt-4' / 'bge-m3'。"""
 
-    kind: Literal["service", "api", "model", "env"]
+    kind: Literal["service", "api", "model", "env", "internal_llm", "internal_embed"]
     required: bool = True
     check_hint: str = ""
     """例：'curl http://localhost:6333/healthz' / 'env MEM0_API_KEY'。"""
+
+    swap_supported: bool = True
+    """该依赖是否可被替换。
+
+    对 internal_llm / internal_embed 尤其关键 —— 决定本 adapter 能否跑 Lane A1
+    （锁定 Qwen3-Max 内外层）。例：
+    - Letta 的内部 LLM 默认 OpenAI，但接受用户传入 → swap_supported=True
+    - Mem0 的 embedding 默认 OpenAI ada-002，可改 bge-m3 → swap_supported=True
+    - 某 adapter 硬编码 GPT-4 拒绝替换 → swap_supported=False
+    """
 
 
 @dataclass(frozen=True)

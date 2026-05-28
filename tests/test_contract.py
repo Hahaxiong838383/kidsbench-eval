@@ -170,6 +170,18 @@ class TestContract:
             "必须显式声明（哪怕是 unsupported）"
         )
 
+    def test_lane_compatibility_declared(self, adapter_name: str) -> None:
+        """capability_profile 必须声明 A1/A2/B 三档 Lane 适配性（防 Lane 调度盲打）。"""
+        adapter = ADAPTER_FACTORIES[adapter_name]()
+        profile = adapter.get_capability_profile()
+        for lane in ("A1", "A2", "B"):
+            assert lane in profile.lane_compatibility, (
+                f"{adapter_name}: lane_compatibility 缺 '{lane}'，必须声明 compatible/incompatible/degraded"
+            )
+            assert profile.lane_compatibility[lane] in ("compatible", "incompatible", "degraded"), (
+                f"{adapter_name}: lane_compatibility[{lane}] 取值非法"
+            )
+
     def test_concurrent_user_isolation(self, adapter_name: str) -> None:
         """user_id 隔离锚点：u1 的数据不能污染 u2 的召回。"""
         adapter = ADAPTER_FACTORIES[adapter_name]()

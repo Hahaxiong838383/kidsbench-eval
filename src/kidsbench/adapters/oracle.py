@@ -117,4 +117,10 @@ class OracleAdapter(MemoryAdapter):
             for f in STANDARD_FEATURES
             for lvl, note in [caps_map[f]]
         ]
-        return CapabilityProfile(adapter_name=self.name, capabilities=caps)
+        # Oracle 不调任何 LLM/embed，所有 Lane 兼容
+        return CapabilityProfile(
+            adapter_name=self.name,
+            capabilities=caps,
+            lane_compatibility={"A1": "compatible", "A2": "compatible", "B": "compatible"},
+            lane_notes={},
+        )
