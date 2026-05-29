@@ -33,6 +33,17 @@ coverage.xml
 *.swo
 .DS_Store
 
+# Frontend build artifacts
+web/frontend/node_modules/
+web/frontend/dist/
+web/frontend/tsconfig.tsbuildinfo
+web/frontend/.vite/
+web/frontend/coverage/
+
+# Backend deployment artifacts
+web/backend/data/
+web/backend/runs/
+
 # Eval artifacts
 runs/
 logs/
