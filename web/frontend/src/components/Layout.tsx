@@ -5,6 +5,7 @@ const NAV = [
   { to: "/adapters", label: "Adapter" },
   { to: "/memory", label: "记忆系统" },
   { to: "/runs", label: "历史 Run" },
+  { to: "/llm", label: "LLM 配置" },
   { to: "/system", label: "系统" },
 ];
 

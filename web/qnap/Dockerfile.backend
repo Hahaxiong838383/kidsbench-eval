@@ -10,6 +10,11 @@ RUN pip install --no-cache-dir --quiet -r requirements.txt
 
 # 拷代码
 COPY app/ ./app/
+# B1 phase 3：让 backend 能 import kidsbench.config 模块（LLM Preset）
+COPY src/ ./src/
+# B1 phase 3：preset TOML 文件（用户添加的可经 volume mount 持久化覆盖）
+COPY configs/ ./configs/
+ENV PYTHONPATH=/app/src:${PYTHONPATH:-}
 
 # 默认 env（可被 docker-compose environment 覆盖）
 ENV KIDSBENCH_RUNS_PATH=/app/runs \

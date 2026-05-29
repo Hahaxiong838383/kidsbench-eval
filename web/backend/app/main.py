@@ -16,8 +16,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .architecture import router as architecture_router
 from .config import CORS_ORIGINS
+from .llm_presets import router as llm_presets_router
 from .runs import router as runs_router
 from .state import router as state_router
+
+# 启动时尝试加载 .env.local（本地 dev 显示 preset configured 状态）
+# Production container 内通常没此文件，load_dotenv_local 返回 0 即可
+try:
+    from .llm_presets import load_preset as _lp  # noqa: F401 - 触发 sys.path 注入
+
+    from kidsbench.config import load_dotenv_local  # noqa: E402
+
+    load_dotenv_local()
+except (ImportError, Exception):  # noqa: BLE001
+    pass
+
 
 app = FastAPI(
     title="KidsBench Web Backend",
@@ -36,6 +49,7 @@ app.add_middleware(
 app.include_router(architecture_router)
 app.include_router(state_router)
 app.include_router(runs_router)
+app.include_router(llm_presets_router)
 
 
 @app.get("/healthz")

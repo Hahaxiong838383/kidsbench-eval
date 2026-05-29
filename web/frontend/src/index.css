@@ -35,4 +35,8 @@
   .pill-zinc  { @apply bg-slate-100 text-slate-700 border-slate-200; }
   .pill-blue  { @apply bg-sky-50 text-sky-700 border-sky-200; }
   .pill-violet { @apply bg-violet-50 text-violet-700 border-violet-200; }
+  .input {
+    @apply w-full bg-white border border-slate-200 rounded px-2 py-1.5 text-sm
+           focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-200;
+  }
 }

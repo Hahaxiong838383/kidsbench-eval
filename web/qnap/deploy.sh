@@ -40,8 +40,10 @@ step "1/6" "本地 build frontend dist"
 step "2/6" "打包 backend / frontend / configs（用 COPY_FILE_FLAG 防 macOS dot-underscore）"
 rm -f "$TAR"
 COPYFILE_DISABLE=1 tar czf "$TAR" \
-  --exclude=".DS_Store" --exclude="._*" \
+  --exclude=".DS_Store" --exclude="._*" --exclude="__pycache__" \
   -C "$PROJECT/web/backend" requirements.txt app \
+  -C "$PROJECT" src \
+  -C "$PROJECT" configs \
   -C "$PROJECT/web/frontend" dist \
   -C "$PROJECT/web/qnap" Dockerfile.backend Dockerfile.frontend nginx.conf docker-compose.yml
 ls -lh "$TAR"
@@ -70,9 +72,12 @@ sshpass -e ssh "$HOST_ALIAS" "
   # 清理旧产物 + 解压
   rm -rf backend/app backend/requirements.txt frontend/dist frontend/nginx.conf
   tar xzf kidsbench-deploy.tgz
-  # 后端：app/ + requirements.txt + Dockerfile → backend/
+  # 后端：app/ + requirements.txt + src/ + configs/ + Dockerfile → backend/
   mv app backend/app
   mv requirements.txt backend/requirements.txt
+  rm -rf backend/src backend/configs
+  mv src backend/src
+  mv configs backend/configs
   mv Dockerfile.backend backend/Dockerfile
   # 前端：dist/ + nginx.conf + Dockerfile.frontend → frontend/
   mv dist frontend/dist

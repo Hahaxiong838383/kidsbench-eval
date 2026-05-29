@@ -6,6 +6,7 @@ import AdaptersIndex from "./pages/AdaptersIndex";
 import MemoryDetail from "./pages/MemoryDetail";
 import MemoryIndex from "./pages/MemoryIndex";
 import GroupDetail from "./pages/GroupDetail";
+import LLMPresets from "./pages/LLMPresets";
 import Runs from "./pages/Runs";
 import System from "./pages/System";
 
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="memory/:name" element={<MemoryDetail />} />
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:group" element={<GroupDetail />} />
+        <Route path="llm" element={<LLMPresets />} />
         <Route path="system" element={<System />} />
       </Route>
     </Routes>
