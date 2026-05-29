@@ -216,7 +216,8 @@ class KidsBenchGraphitiLLMClient(_BaseOpenAIClient):  # type: ignore[misc, valid
 
 
 def make_st_embedder(
-    model_name: str = "sentence-transformers/all-MiniLM-L6-v2",
+    # 中文 K12 场景实测 bge-small-zh-v1.5 区分度 0.467（vs all-MiniLM 0.264）
+    model_name: str = "BAAI/bge-small-zh-v1.5",
 ) -> Any:
     """返一个 graphiti EmbedderClient 实现（用 sentence-transformers 本地）。
 

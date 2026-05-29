@@ -129,7 +129,8 @@ def make_memoryos_adapter(tmp_root: str = "/tmp/kidsbench_memoryos_eval") -> Mem
         "openai_base_url": GEMINI_PROXY_URL,
         "data_storage_path": tmp_root,
         "llm_model": "gemini-3.5-flash",
-        "embedding_model_name": "all-MiniLM-L6-v2",
+        # 中文场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264（提升 76%）
+        "embedding_model_name": "BAAI/bge-small-zh-v1.5",
         "mid_term_capacity": 100,
     }
     return MemoryOSAdapter(config=config)
@@ -158,8 +159,10 @@ def make_graphiti_adapter() -> MemoryAdapter | None:
         model="gemini-3.5-flash",
         falkor_host="127.0.0.1",
         falkor_port=16379,
-        falkor_database="kidsbench_eval",
-        embedder_model="sentence-transformers/all-MiniLM-L6-v2",
+        # bge 切换后用新 database 避开旧 384d 索引污染
+        falkor_database="kidsbench_bge",
+        # 中文 K12 场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264
+        embedder_model="BAAI/bge-small-zh-v1.5",
         reasoning_effort="minimal",
     )
     try:
@@ -187,9 +190,10 @@ def make_mem0_adapter() -> MemoryAdapter | None:
             "vector_store": {
                 "provider": "qdrant",
                 "config": {
-                    "collection_name": "kidsbench_eval",
-                    "embedding_model_dims": 384,
-                    "path": "/tmp/kidsbench_qdrant_eval",
+                    # bge 切换后用新 collection name + path 避开旧 384d 数据
+                    "collection_name": "kidsbench_eval_bge",
+                    "embedding_model_dims": 512,  # bge-small-zh-v1.5 维度
+                    "path": "/tmp/kidsbench_qdrant_eval_bge",
                     "on_disk": False,
                 },
             },
@@ -205,8 +209,9 @@ def make_mem0_adapter() -> MemoryAdapter | None:
             "embedder": {
                 "provider": "huggingface",
                 "config": {
-                    "model": "sentence-transformers/all-MiniLM-L6-v2",
-                    "embedding_dims": 384,
+                    # 中文 K12 场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264
+                    "model": "BAAI/bge-small-zh-v1.5",
+                    "embedding_dims": 512,
                 },
             },
         }
