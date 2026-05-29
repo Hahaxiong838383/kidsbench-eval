@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/components/layout.tsx","./src/lib/api.ts","./src/lib/types.ts","./src/pages/adapterdetail.tsx","./src/pages/adaptersindex.tsx","./src/pages/home.tsx","./src/pages/memorydetail.tsx","./src/pages/memoryindex.tsx","./src/pages/runs.tsx","./src/pages/system.tsx"],"version":"5.9.3"}

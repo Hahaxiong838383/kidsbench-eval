@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: kidsbench-web-backend:b0
+    container_name: kidsbench-web-backend
+    networks:
+      - kidsbench-net
+    environment:
+      FALKOR_HOST: kidsbench-falkordb
+      FALKOR_PORT: 6379
+      QDRANT_HOST: kidsbench-qdrant
+      QDRANT_PORT: 6333
+      KIDSBENCH_RUNS_PATH: /app/runs
+      CORS_ORIGINS: "https://kidsbench.cli4.hahaxiong.cc,http://192.168.61.18:18081,http://localhost:5173"
+    volumes:
+      - ./runs-mount:/app/runs:ro       # Air rsync 同步进来（B0 阶段先空，B1 落实）
+      - ./data:/app/data                  # SQLite 等（B2 用）
+    ports:
+      - "18001:8000"
+    restart: unless-stopped
+    mem_limit: 512m
+    cpus: 1.0
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/healthz', timeout=3).status == 200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: kidsbench-web-frontend:b0
+    container_name: kidsbench-web-frontend
+    networks:
+      - kidsbench-net
+    # 不挂 volume，dist + nginx.conf 都 COPY 进 image（避开 QNAP volume ACL）
+    ports:
+      - "18081:80"
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    depends_on:
+      backend:
+        condition: service_healthy
+
+networks:
+  kidsbench-net:
+    external: true        # 复用 P22 留下的现有 network
