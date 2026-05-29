@@ -24,7 +24,8 @@ PROJECT="$(cd "$(dirname "$0")/../.." && pwd)"
 REMOTE_DIR="/share/Container/kidsbench-web"
 TAR="/tmp/kidsbench-deploy.tgz"
 QNAP_IP="192.168.61.18"
-HOST_ALIAS="prnas"
+# 默认 prnas（经 mini 内网 ProxyJump）。mini 内网挂时可用 KIDSBENCH_HOST_ALIAS=prnas-pub 走公网
+HOST_ALIAS="${KIDSBENCH_HOST_ALIAS:-prnas}"
 
 if [ -z "$SSHPASS" ]; then
   echo "❌ SSHPASS env 未设。用法：SSHPASS='xxx' bash $0"
@@ -81,7 +82,8 @@ sshpass -e ssh "$HOST_ALIAS" "
   find . -name '._*' -delete 2>/dev/null || true
   # 起 / 重建容器
   DOCKER=/share/CACHEDEV1_DATA/.qpkg/container-station/bin/docker
-  \$DOCKER compose up -d --build 2>&1 | tail -20
+  # --force-recreate 防 docker 因 image tag 未变误认为 container 无需重启（B1 实战教训）
+  \$DOCKER compose up -d --build --force-recreate 2>&1 | tail -20
   echo
   echo '--- container status ---'
   \$DOCKER compose ps
