@@ -39,9 +39,11 @@ from kidsbench.trace import (  # noqa: E402
     JsonlExporter,
     MultiExporter,
     init_run,
+    install_llm_hook,
     set_exporter,
     span as _trace_span,
     span_attr as _trace_attr,
+    uninstall_llm_hook,
     wrap as _trace_wrap_adapter,
 )
 from kidsbench.trace.span import get_current_run_id, preview as _trace_preview  # noqa: E402
@@ -509,6 +511,11 @@ def main() -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     out_file = run_dir / "results.jsonl"
 
+    # B1.1 第二刀：trace 启用时 monkey-patch openai + sentence_transformers
+    # 让 mem0/memoryos/graphiti 内部 LLM/embedding 调用自动产生 span
+    if args.trace:
+        install_llm_hook()
+
     summary: dict[str, dict] = {}
 
     with out_file.open("w", encoding="utf-8") as fout:
@@ -573,6 +580,11 @@ def main() -> int:
     summary_file.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n[harness] results → {out_file}", flush=True)
     print(f"[harness] summary → {summary_file}", flush=True)
+
+    # B1.1 第二刀：还原 monkey-patch
+    if args.trace:
+        uninstall_llm_hook()
+
     return 0
 
 

@@ -22,6 +22,12 @@
 """
 
 from .adapter_wrap import TracedAdapter, wrap
+from .llm_hook import (
+    install as install_llm_hook,
+    installed_methods as llm_hook_installed_methods,
+    is_installed as is_llm_hook_installed,
+    uninstall as uninstall_llm_hook,
+)
 from .exporter import (
     Exporter,
     HttpExporter,
@@ -54,4 +60,8 @@ __all__ = [
     "MultiExporter",
     "NullExporter",
     "set_exporter",
+    "install_llm_hook",
+    "uninstall_llm_hook",
+    "is_llm_hook_installed",
+    "llm_hook_installed_methods",
 ]
