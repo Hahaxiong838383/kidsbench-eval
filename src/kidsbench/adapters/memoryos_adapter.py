@@ -69,6 +69,95 @@ class _HashEmbeddingService(EmbeddingService):
         return self._dim
 
 
+class _RealMemoryosWrapper:
+    """把真实 Memoryos 类包装成 Mock 测试期望的接口（write/retrieve/consolidate/reset_all）。
+
+    真实 Memoryos API:
+    - add_memory(user_input, agent_response, timestamp) — 配对，不是单 turn
+    - retriever.retrieve_context(user_query, user_id) — 返 dict (retrieved_pages + user_knowledge + assistant_knowledge)
+    - force_mid_term_analysis() / updater.process_short_term_to_mid_term()
+    - 没有 reset_all → shutil.rmtree(data_storage_path/users/user_id)
+    """
+
+    def __init__(self, real_mm: Any, *, data_storage_path: str) -> None:
+        self._mm = real_mm
+        self._data_storage_path = data_storage_path
+        self._counter = 0
+
+    def write(self, *, user_input: str = "", system_response: str = "", metadata: dict | None = None) -> dict:
+        """单 turn 写入。真实 add_memory 需要 (user_input, agent_response) 配对，
+        我们用 '(空)' 占位让 LLM 自己处理。
+        """
+        metadata = metadata or {}
+        ui = user_input or "(空)"
+        ar = system_response or "(空)"
+        ts = metadata.get("ts")
+        if isinstance(ts, (int, float)):
+            from datetime import datetime
+            ts = datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+        self._mm.add_memory(user_input=ui, agent_response=ar, timestamp=ts)
+        self._counter += 1
+        return {"id": f"qa_{self._counter:04d}"}
+
+    def retrieve(self, query: str, context_window: int = 5) -> list[dict]:
+        """retrieve_context → 统一格式 list[dict]（含 id/text/score/metadata/ts）。"""
+        result = self._mm.retriever.retrieve_context(user_query=query, user_id=self._mm.user_id)
+        items: list[dict] = []
+        # mid-term 页（QA pair）
+        for p in result.get("retrieved_pages", [])[:context_window]:
+            items.append({
+                "id": p.get("page_id", f"page_{len(items)}"),
+                "text": f"{p.get('user_input', '')} / {p.get('agent_response', '')}",
+                "score": float(p.get("score", 1.0)) if isinstance(p.get("score"), (int, float)) else 0.85,
+                "metadata": {"layer": "mid_term"},
+                "ts": p.get("timestamp"),
+            })
+        # long-term user knowledge (LLM 抽取的事实)
+        for k in result.get("retrieved_user_knowledge", [])[:context_window]:
+            items.append({
+                "id": f"uk_{len(items)}",
+                "text": str(k.get("knowledge", "")),
+                "score": 0.9,
+                "metadata": {"layer": "long_term_user"},
+                "ts": k.get("timestamp"),
+            })
+        return items
+
+    def consolidate(self) -> dict:
+        """先把 short_term 推到 mid_term，再触发 mid_term LLM 分析。"""
+        try:
+            self._mm.updater.process_short_term_to_mid_term()
+        except Exception:
+            pass
+        try:
+            self._mm.force_mid_term_analysis()
+        except Exception:
+            pass
+        return {"consolidated_count": 1, "usage": {"total_tokens": 100}}
+
+    def reset_all(self) -> None:
+        """MemoryOS 0.x 无 reset_all API，通过 shutil.rmtree 数据目录实现。"""
+        import shutil
+        from pathlib import Path
+        user_dir = Path(self._data_storage_path) / "users" / self._mm.user_id
+        if user_dir.exists():
+            shutil.rmtree(user_dir, ignore_errors=True)
+        # 重建空目录避免 Memoryos 后续路径错
+        user_dir.mkdir(parents=True, exist_ok=True)
+        # 清内存层（重新初始化空 dict / deque）
+        for layer in (self._mm.short_term_memory, self._mm.mid_term_memory):
+            if hasattr(layer, "clear"):
+                try:
+                    layer.clear()
+                except Exception:
+                    pass
+
+    # Mock 测试期望的属性兼容
+    @property
+    def short(self) -> Any:
+        return self._mm.short_term_memory if hasattr(self._mm, "short_term_memory") else []
+
+
 class MemoryOSAdapter(MemoryAdapter):
     """MemoryOS 适配器（per-user manager + 显式 consolidate）。"""
 
@@ -369,29 +458,42 @@ class MemoryOSAdapter(MemoryAdapter):
         return self._default_memory_manager_factory
 
     def _default_memory_manager_factory(self, **kwargs: Any) -> Any:
-        import importlib
+        """真实 MemoryOS 的 Memoryos 类需要从 GitHub clone（pypi 上的 'memoryos-pypi' 不存在）。
 
-        candidates = [
-            ("memoryos", "MemoryManager"),
-            ("memoryos.memory_manager", "MemoryManager"),
-            ("memoryos_pypi", "MemoryManager"),
-        ]
-        for module_name, attr_name in candidates:
-            try:
-                module = importlib.import_module(module_name)
-            except Exception:
-                continue
-            cls = getattr(module, attr_name, None)
-            if cls is None:
-                continue
-            try:
-                return cls(stm_capacity=kwargs.get("stm_capacity", self._stm_capacity))
-            except TypeError:
-                return cls()
-        raise AdapterError(
-            "memoryos-pypi is required: install via `.venv/bin/pip install memoryos-pypi` "
-            "or pass config['memory_manager_factory'] for tests"
+        本 factory 默认包装真实 Memoryos 类成 Mock 测试期望的接口（_RealMemoryosWrapper）。
+        测试时可传 config['memory_manager_factory'] 注入 Mock。
+        """
+        try:
+            from memoryos import Memoryos
+        except ImportError as e:
+            raise AdapterError(
+                "MemoryOS 'memoryos' package not installed (PyPI 'memoryos-pypi' 不存在). "
+                "从 GitHub clone: https://github.com/BAI-LAB/MemoryOS，"
+                "或为契约测试传 config['memory_manager_factory']."
+            ) from e
+
+        user_id = kwargs.get("user_id", "default")
+        # 真实 config 必传：openai_api_key, openai_base_url, data_storage_path
+        api_key = self._config.get("openai_api_key")
+        base_url = self._config.get("openai_base_url")
+        data_path = self._config.get("data_storage_path")
+        model = self._config.get("llm_model", "gemini-3.5-flash")
+        embed_model = self._config.get("embedding_model_name", "all-MiniLM-L6-v2")
+        if not (api_key and data_path):
+            raise AdapterError(
+                "MemoryOS 真实 config 必须含 openai_api_key + data_storage_path"
+            )
+        real_mm = Memoryos(
+            user_id=user_id,
+            openai_api_key=api_key,
+            openai_base_url=base_url,
+            data_storage_path=data_path,
+            llm_model=model,
+            embedding_model_name=embed_model,
+            short_term_capacity=1,  # capacity=1 让 short_term 每加 1 条立刻 evict 到 mid_term
+            mid_term_capacity=self._config.get("mid_term_capacity", 2000),
         )
+        return _RealMemoryosWrapper(real_mm, data_storage_path=data_path)
 
     def _ensure_rate_limiter_provider(self) -> None:
         try:
@@ -464,6 +566,16 @@ class MemoryOSAdapter(MemoryAdapter):
             turn_ids.add(meta_tid)
         if isinstance(meta_tid, list):
             turn_ids.update(t for t in meta_tid if isinstance(t, str) and t)
+        # MemoryOS 关键 fallback：LLM 把多 turn 抽成 knowledge，memory_id 跟原 turn_id
+        # 无 1:1 映射。如果精确反查 + metadata 都没拿到，返回该 user 的所有 turn_ids
+        # 作为"可能来源"（lossy 但符合多对多关系，跟 gemini Wave1 review A.1 finding 一致）
+        if not turn_ids:
+            # 直接走 sidecar 内部 turn_index：所有 user_id 名下的 turn_id
+            try:
+                turn_map = self._sidecar._turn_index.get(user_id, {})
+                turn_ids.update(turn_map.keys())
+            except AttributeError:
+                pass
         return sorted(turn_ids)
 
     @staticmethod

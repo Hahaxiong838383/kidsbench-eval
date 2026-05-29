@@ -115,6 +115,26 @@ def make_baseline_adapters() -> dict[str, MemoryAdapter]:
     return adapters
 
 
+def make_memoryos_adapter(tmp_root: str = "/tmp/kidsbench_memoryos_eval") -> MemoryAdapter | None:
+    """如果 .venv-memoryos 可用就返 MemoryOSAdapter，否则 None。"""
+    try:
+        import memoryos  # noqa: F401
+
+        from kidsbench.adapters.memoryos_adapter import MemoryOSAdapter
+    except (ImportError, ModuleNotFoundError):
+        return None
+
+    config = {
+        "openai_api_key": GEMINI_PROXY_KEY,
+        "openai_base_url": GEMINI_PROXY_URL,
+        "data_storage_path": tmp_root,
+        "llm_model": "gemini-3.5-flash",
+        "embedding_model_name": "all-MiniLM-L6-v2",
+        "mid_term_capacity": 100,
+    }
+    return MemoryOSAdapter(config=config)
+
+
 def make_mem0_adapter() -> MemoryAdapter | None:
     """如果 .venv-mem0 可用就返 Mem0Adapter，否则 None。
 
@@ -370,6 +390,7 @@ def main() -> int:
     parser.add_argument("--questions", type=Path, default=Path("questions/smoke.jsonl"))
     parser.add_argument("--out", type=Path, default=Path("runs"))
     parser.add_argument("--include-mem0", action="store_true", help="是否跑 Mem0Adapter（需 .venv-mem0）")
+    parser.add_argument("--include-memoryos", action="store_true", help="是否跑 MemoryOSAdapter（需 .venv-memoryos）")
     parser.add_argument("--run-id", type=str, default=f"run_{int(time.time())}")
     args = parser.parse_args()
 
@@ -383,6 +404,12 @@ def main() -> int:
             print("[harness] mem0 不可用（未装 mem0ai 或 sentence-transformers），跳过", flush=True)
         else:
             adapters["mem0"] = mem0
+    if args.include_memoryos:
+        memoryos = make_memoryos_adapter(f"/tmp/kidsbench_memoryos_{args.run_id}")
+        if memoryos is None:
+            print("[harness] memoryos 不可用（未装 memoryos package），跳过", flush=True)
+        else:
+            adapters["memoryos"] = memoryos
 
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
     llm = ProxyLLMClient()

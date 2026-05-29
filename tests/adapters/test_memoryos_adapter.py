@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import time
 from typing import Any
 
@@ -135,28 +134,47 @@ def test_lane_compatibility_profile() -> None:
 
 
 @pytest.mark.integration
-def test_integration_memoryos_five_turns_consolidate_retrieve() -> None:
-    try:
-        from memoryos import MemoryManager  # type: ignore
-    except Exception:
-        pytest.skip("memoryos-pypi not installed")
-    if not os.getenv("OPENAI_API_KEY"):
-        pytest.skip("OPENAI_API_KEY not set")
+def test_integration_memoryos_five_turns_consolidate_retrieve(tmp_path) -> None:
+    """真实 MemoryOS 集成测试。
 
-    adapter = MemoryOSAdapter(config={"memory_manager_factory": lambda **_: MemoryManager()})
+    必跑环境: .venv-memoryos (含 memoryos package + openai + sentence-transformers + faiss-cpu)
+    LLM: GEMINI_PROXY (OpenAI 兼容)
+    Embedder: 内置 all-MiniLM-L6-v2 (Memoryos 自管)
+    """
+    try:
+        from memoryos import Memoryos  # type: ignore  # noqa: F401
+    except Exception:
+        pytest.skip("memoryos package not installed (use .venv-memoryos)")
+
+    # GEMINI_PROXY 替代 OPENAI_API_KEY
+    config = {
+        "openai_api_key": "fq8-1NLtsbVsiJhZaISmNeobvqY0bIZMoafPnKfkuz4",
+        "openai_base_url": "http://23.226.135.149:4000/v1",
+        "data_storage_path": str(tmp_path),
+        "llm_model": "gemini-3.5-flash",
+        "embedding_model_name": "all-MiniLM-L6-v2",
+        "mid_term_capacity": 100,
+    }
+    adapter = MemoryOSAdapter(config=config)
     turns = [
-        _turn("t1", "user", "我养了一只猫叫团子"),
-        _turn("t2", "assistant", "团子很可爱"),
+        _turn("t1", "user", "我养了一只猫叫团子，是布偶猫"),
+        _turn("t2", "assistant", "团子真可爱"),
         _turn("t3", "user", "团子最喜欢冻干"),
-        _turn("t4", "assistant", "我记住了"),
-        _turn("t5", "user", "帮我回忆团子的习惯"),
+        _turn("t4", "assistant", "记住了"),
+        _turn("t5", "user", "团子最近体重三公斤了"),
     ]
     adapter.batch_write("u_itg", turns)
     adapter.flush("u_itg")
     cstats = adapter.consolidate("u_itg")
     assert cstats.success
 
-    result = adapter.read("u_itg", "团子的习惯", ReadOpts(top_k=5))
-    assert result.memories
+    result = adapter.read("u_itg", "团子的品种和习惯", ReadOpts(top_k=5))
+    # 至少召回 1 条（MemoryOS LLM 抽出来的 knowledge）
+    assert result.memories, "MemoryOS 没召回任何 memories — 集成失败"
     hit_count = sum(1 for memory in result.memories if memory.source_turn_ids)
-    assert hit_count >= 1
+    assert hit_count >= 1, "所有 memory 都缺 source_turn_ids — sidecar 兜底失效"
+
+    # clear 验证
+    adapter.clear("u_itg")
+    read_after = adapter.read("u_itg", "团子", ReadOpts(top_k=5))
+    assert not read_after.memories, "clear 后仍有幽灵记忆"
