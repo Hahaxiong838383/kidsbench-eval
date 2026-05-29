@@ -34,6 +34,17 @@ from kidsbench.contract import (  # noqa: E402
     Turn,
 )
 from kidsbench.middleware import LLMClient, LLMResponse  # noqa: E402
+from kidsbench.trace import (  # noqa: E402
+    HttpExporter,
+    JsonlExporter,
+    MultiExporter,
+    init_run,
+    set_exporter,
+    span as _trace_span,
+    span_attr as _trace_attr,
+    wrap as _trace_wrap_adapter,
+)
+from kidsbench.trace.span import get_current_run_id, preview as _trace_preview  # noqa: E402
 
 # ============= LLM 客户端（GEMINI_PROXY OpenAI 兼容）=============
 
@@ -56,6 +67,16 @@ class ProxyLLMClient(LLMClient):
         max_tokens: int = 4096,  # gemini-3.5-flash thinking 模型，max_tokens 必须 ≥ 4096
     ) -> LLMResponse:
         """K12 评测用 minimal thinking（防 reasoning_tokens 耗光输出）。"""
+        return self._do_complete(system, user, temperature, max_tokens)
+
+    @_trace_span("llm.answer")
+    def _do_complete(
+        self,
+        system: str,
+        user: str,
+        temperature: float,
+        max_tokens: int,
+    ) -> LLMResponse:
         import httpx
 
         t0 = time.perf_counter()
@@ -90,6 +111,13 @@ class ProxyLLMClient(LLMClient):
             raise RuntimeError(f"LLM message 缺失（finish_reason={fr}）: {data}")
         text = msg["content"] or ""
         usage = data.get("usage", {})
+        _trace_attr(
+            model=self._model,
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            latency_ms=round(latency_ms, 2),
+            answer_preview=_trace_preview(text, 200),
+        )
         return LLMResponse(
             text=text,
             model=self._model,
@@ -438,6 +466,17 @@ def main() -> int:
     parser.add_argument("--include-memoryos", action="store_true", help="是否跑 MemoryOSAdapter（需 .venv-memoryos）")
     parser.add_argument("--include-graphiti", action="store_true", help="是否跑 GraphitiAdapter（需 .venv-graphiti + 隧道 16379→QNAP）")
     parser.add_argument("--run-id", type=str, default=f"run_{int(time.time())}")
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="启用 B1 trace：每 (adapter, qid) 生成 pipeline.jsonl + 可选 HTTP POST 实时推送",
+    )
+    parser.add_argument(
+        "--trace-http",
+        type=str,
+        default="",
+        help="trace HTTP exporter endpoint 模板（含 {run_id} 占位），默认仅本地 jsonl",
+    )
     args = parser.parse_args()
 
     questions = load_questions(args.questions)
@@ -476,12 +515,30 @@ def main() -> int:
         for adapter_name, adapter in adapters.items():
             print(f"\n=== [{adapter_name}] ===", flush=True)
             summary[adapter_name] = {"correct": 0, "wrong": 0, "evasive": 0, "error": 0, "total": 0}
+            # B1: trace 启用时包 adapter，方法调用自动发 span
+            traced_adapter = _trace_wrap_adapter(adapter) if args.trace else adapter
             for q in questions:
                 qid = q["qid"]
                 print(f"  {qid} ({q.get('difficulty_class','?')}, {q.get('cognitive_type','?')})...",
                       flush=True, end=" ")
                 try:
-                    log = evaluate_one(adapter, q, llm)
+                    if args.trace:
+                        # 每 (adapter, qid) 一个独立 run_id + 独立 pipeline.jsonl
+                        trace_run_id = f"{adapter_name}_{qid}_{args.run_id}"
+                        pipeline_path = run_dir / "pipelines" / f"{trace_run_id}.jsonl"
+                        pipeline_path.parent.mkdir(parents=True, exist_ok=True)
+                        exporters = [JsonlExporter(pipeline_path)]
+                        if args.trace_http:
+                            exporters.append(HttpExporter(
+                                endpoint_tpl=args.trace_http,
+                                run_id_getter=get_current_run_id,
+                            ))
+                        set_exporter(MultiExporter(exporters))
+                        with init_run(trace_run_id, qid=qid, adapter=adapter_name, run_group=args.run_id):
+                            log = evaluate_one(traced_adapter, q, llm)
+                        set_exporter(None)
+                    else:
+                        log = evaluate_one(traced_adapter, q, llm)
                 except Exception as e:
                     print(f"FATAL: {e}", flush=True)
                     traceback.print_exc()

@@ -21,14 +21,7 @@
         adapter.read(...)
 """
 
-from .span import (
-    SpanEvent,
-    finalize_run,
-    init_run,
-    is_tracing,
-    span,
-    span_attr,
-)
+from .adapter_wrap import TracedAdapter, wrap
 from .exporter import (
     Exporter,
     HttpExporter,
@@ -36,6 +29,14 @@ from .exporter import (
     MultiExporter,
     NullExporter,
     set_exporter,
+)
+from .span import (
+    SpanEvent,
+    finalize_run,
+    init_run,
+    is_tracing,
+    span,
+    span_attr,
 )
 
 __all__ = [
@@ -45,6 +46,8 @@ __all__ = [
     "init_run",
     "finalize_run",
     "is_tracing",
+    "TracedAdapter",
+    "wrap",
     "Exporter",
     "HttpExporter",
     "JsonlExporter",
