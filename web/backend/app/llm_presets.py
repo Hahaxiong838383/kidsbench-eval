@@ -172,6 +172,80 @@ def create_preset(body: CreatePresetSchema) -> dict:
     return {"name": body.name, "created": True, "path": str(path)}
 
 
+class UpdatePresetSchema(BaseModel):
+    """编辑 preset 的请求体（除 name 外的所有字段可改）。"""
+
+    display_name: str | None = None
+    provider: str | None = None
+    base_url: str | None = None
+    api_key_env: str | None = None
+    model: str | None = None
+    max_tokens: int | None = None
+    reasoning_effort: str | None = None
+    embedding: EmbeddingSchema | None = None
+
+
+@router.patch("/presets/{name}")
+def update_preset(name: str, body: UpdatePresetSchema) -> dict:
+    """编辑现有 preset。只覆盖 body 中显式提供的字段。"""
+    if not _is_safe_name(name):
+        raise HTTPException(status_code=400, detail="invalid preset name")
+    if load_preset is None:
+        raise HTTPException(status_code=503, detail="kidsbench config 不可用")
+    try:
+        existing = load_preset(name, PRESET_DIR)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    # merge: body 中显式字段 > existing
+    merged_emb = body.embedding or EmbeddingSchema(
+        provider=existing.embedding.provider,
+        model=existing.embedding.model,
+        dim=existing.embedding.dim,
+    )
+    merged = CreatePresetSchema(
+        name=existing.name,
+        display_name=body.display_name if body.display_name is not None else existing.display_name,
+        provider=body.provider if body.provider is not None else existing.provider,
+        base_url=body.base_url if body.base_url is not None else existing.base_url,
+        api_key_env=body.api_key_env if body.api_key_env is not None else existing.api_key_env,
+        model=body.model if body.model is not None else existing.model,
+        max_tokens=body.max_tokens if body.max_tokens is not None else existing.max_tokens,
+        reasoning_effort=(
+            body.reasoning_effort if body.reasoning_effort is not None else existing.reasoning_effort
+        ),
+        embedding=merged_emb,
+    )
+
+    # 写覆盖
+    path = PRESET_DIR / f"{name}.toml"
+    toml_lines = [
+        f'name = "{_escape(merged.name)}"',
+        f'display_name = "{_escape(merged.display_name or merged.name)}"',
+        f'provider = "{_escape(merged.provider)}"',
+        f'base_url = "{_escape(merged.base_url)}"',
+        f'api_key_env = "{_escape(merged.api_key_env)}"',
+        f'model = "{_escape(merged.model)}"',
+        f"max_tokens = {merged.max_tokens}",
+    ]
+    if merged.reasoning_effort:
+        toml_lines.append(f'reasoning_effort = "{_escape(merged.reasoning_effort)}"')
+    toml_lines.extend([
+        "",
+        "[embedding]",
+        f'provider = "{_escape(merged.embedding.provider)}"',
+        f'model = "{_escape(merged.embedding.model)}"',
+        f"dim = {merged.embedding.dim}",
+    ])
+    path.write_text("\n".join(toml_lines) + "\n", encoding="utf-8")
+    try:
+        path.chmod(0o644)
+    except OSError:
+        pass
+
+    return load_preset(name, PRESET_DIR).to_public_dict()
+
+
 @router.delete("/presets/{name}")
 def delete_preset(name: str) -> dict:
     if not _is_safe_name(name):
