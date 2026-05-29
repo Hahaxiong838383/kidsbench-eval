@@ -1,0 +1,17 @@
+# KidsBench LLM Preset — Gemini 3.5 Flash（默认）
+# 用法：python -m harness.run_eval --llm-preset gemini-3.5-flash
+#
+# api_key 永不写在 preset 文件里，只通过 env 注入（在 .env.local 设置）
+name = "gemini-3.5-flash"
+display_name = "Gemini 3.5 Flash (via GEMINI_PROXY)"
+provider = "gemini-proxy"
+base_url = "http://23.226.135.149:4000/v1"
+api_key_env = "KIDSBENCH_GEMINI_API_KEY"
+model = "gemini-3.5-flash"
+reasoning_effort = "minimal"      # 防 reasoning tokens 耗光 message
+max_tokens = 4096
+
+[embedding]
+provider = "huggingface"
+model = "BAAI/bge-small-zh-v1.5"
+dim = 512

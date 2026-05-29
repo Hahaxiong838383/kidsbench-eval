@@ -22,6 +22,7 @@ import time
 import traceback
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
@@ -33,6 +34,7 @@ from kidsbench.contract import (  # noqa: E402
     ReadOpts,
     Turn,
 )
+from kidsbench.config import LLMPreset, list_preset_names, load_dotenv_local, load_preset  # noqa: E402
 from kidsbench.middleware import LLMClient, LLMResponse  # noqa: E402
 from kidsbench.trace import (  # noqa: E402
     HttpExporter,
@@ -48,17 +50,27 @@ from kidsbench.trace import (  # noqa: E402
 )
 from kidsbench.trace.span import get_current_run_id, preview as _trace_preview  # noqa: E402
 
-# ============= LLM 客户端（GEMINI_PROXY OpenAI 兼容）=============
+# ============= LLM 客户端（preset-based OpenAI 兼容）=============
 
+# 兼容性别名（旧代码可能依赖）：随 --llm-preset 切换时由 main() 重赋值
 GEMINI_PROXY_URL = "http://23.226.135.149:4000/v1"
-GEMINI_PROXY_KEY = "fq8-1NLtsbVsiJhZaISmNeobvqY0bIZMoafPnKfkuz4"
+GEMINI_PROXY_KEY = ""  # 启动时从 preset 注入
 
 
 class ProxyLLMClient(LLMClient):
-    """GEMINI_PROXY 简易 OpenAI 兼容客户端。"""
+    """通用 OpenAI 兼容客户端（接受 preset）。
 
-    def __init__(self, model: str = "gemini-3.5-flash") -> None:
-        self._model = model
+    Preset 决定 base_url / api_key / model / reasoning_effort 等。
+    密钥从 preset.get_api_key()（env 注入，永不硬编码）。
+    """
+
+    def __init__(self, preset: LLMPreset) -> None:
+        self._preset = preset
+        self._model = preset.model
+        self._base_url = preset.base_url
+        self._api_key = preset.get_api_key()  # 抛 RuntimeError 如果未配置
+        self._reasoning_effort = preset.reasoning_effort
+        self._max_tokens_default = preset.max_tokens
 
     def complete(
         self,
@@ -66,9 +78,9 @@ class ProxyLLMClient(LLMClient):
         user: str,
         *,
         temperature: float = 0.0,
-        max_tokens: int = 4096,  # gemini-3.5-flash thinking 模型，max_tokens 必须 ≥ 4096
+        max_tokens: int | None = None,
     ) -> LLMResponse:
-        """K12 评测用 minimal thinking（防 reasoning_tokens 耗光输出）。"""
+        """通用 OpenAI 兼容 chat completion。"""
         return self._do_complete(system, user, temperature, max_tokens)
 
     @_trace_span("llm.answer")
@@ -77,27 +89,27 @@ class ProxyLLMClient(LLMClient):
         system: str,
         user: str,
         temperature: float,
-        max_tokens: int,
+        max_tokens: int | None,
     ) -> LLMResponse:
         import httpx
 
         t0 = time.perf_counter()
-        body = {
+        body: dict[str, Any] = {
             "model": self._model,
             "messages": [
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
             "temperature": temperature,
-            "max_tokens": max_tokens,
-            # 关键：gemini-3.5-flash 默认 thinking 会耗 100+ tokens reasoning，
-            # K12 简答场景不需要 thinking，必须显式设 minimal
-            "reasoning_effort": "minimal",
+            "max_tokens": max_tokens or self._max_tokens_default,
         }
+        if self._reasoning_effort:
+            # gemini-3.5-flash 等 thinking 模型必须显式 minimal 防 reasoning_tokens 爆 message
+            body["reasoning_effort"] = self._reasoning_effort
         with httpx.Client(timeout=120) as client:
             resp = client.post(
-                f"{GEMINI_PROXY_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {GEMINI_PROXY_KEY}"},
+                f"{self._base_url}/chat/completions",
+                headers={"Authorization": f"Bearer {self._api_key}"},
                 json=body,
             )
             resp.raise_for_status()
@@ -145,7 +157,9 @@ def make_baseline_adapters() -> dict[str, MemoryAdapter]:
     return adapters
 
 
-def make_memoryos_adapter(tmp_root: str = "/tmp/kidsbench_memoryos_eval") -> MemoryAdapter | None:
+def make_memoryos_adapter(
+    preset: LLMPreset, tmp_root: str = "/tmp/kidsbench_memoryos_eval"
+) -> MemoryAdapter | None:
     """如果 .venv-memoryos 可用就返 MemoryOSAdapter，否则 None。"""
     try:
         import memoryos  # noqa: F401
@@ -155,18 +169,17 @@ def make_memoryos_adapter(tmp_root: str = "/tmp/kidsbench_memoryos_eval") -> Mem
         return None
 
     config = {
-        "openai_api_key": GEMINI_PROXY_KEY,
-        "openai_base_url": GEMINI_PROXY_URL,
+        "openai_api_key": preset.get_api_key(),
+        "openai_base_url": preset.base_url,
         "data_storage_path": tmp_root,
-        "llm_model": "gemini-3.5-flash",
-        # 中文场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264（提升 76%）
-        "embedding_model_name": "BAAI/bge-small-zh-v1.5",
+        "llm_model": preset.model,
+        "embedding_model_name": preset.embedding.model,
         "mid_term_capacity": 100,
     }
     return MemoryOSAdapter(config=config)
 
 
-def make_graphiti_adapter() -> MemoryAdapter | None:
+def make_graphiti_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     """如果 .venv-graphiti 可用 + FalkorDB 隧道在，返回 GraphitiAdapter；否则 None。
 
     用法：
@@ -184,16 +197,15 @@ def make_graphiti_adapter() -> MemoryAdapter | None:
         return None
 
     factory = make_real_graphiti_client_factory(
-        api_key=GEMINI_PROXY_KEY,
-        base_url=GEMINI_PROXY_URL,
-        model="gemini-3.5-flash",
+        api_key=preset.get_api_key(),
+        base_url=preset.base_url,
+        model=preset.model,
         falkor_host="127.0.0.1",
         falkor_port=16379,
         # bge 切换后用新 database 避开旧 384d 索引污染
         falkor_database="kidsbench_bge",
-        # 中文 K12 场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264
-        embedder_model="BAAI/bge-small-zh-v1.5",
-        reasoning_effort="minimal",
+        embedder_model=preset.embedding.model,
+        reasoning_effort=preset.reasoning_effort or "minimal",
     )
     try:
         return GraphitiAdapter(
@@ -208,7 +220,7 @@ def make_graphiti_adapter() -> MemoryAdapter | None:
         return None
 
 
-def make_mem0_adapter() -> MemoryAdapter | None:
+def make_mem0_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     """如果 .venv-mem0 可用就返 Mem0Adapter，否则 None。
 
     用法：跑 harness 时必须切到 .venv-mem0 才能用 mem0。
@@ -222,7 +234,7 @@ def make_mem0_adapter() -> MemoryAdapter | None:
                 "config": {
                     # bge 切换后用新 collection name + path 避开旧 384d 数据
                     "collection_name": "kidsbench_eval_bge",
-                    "embedding_model_dims": 512,  # bge-small-zh-v1.5 维度
+                    "embedding_model_dims": preset.embedding.dim,
                     "path": "/tmp/kidsbench_qdrant_eval_bge",
                     "on_disk": False,
                 },
@@ -230,18 +242,17 @@ def make_mem0_adapter() -> MemoryAdapter | None:
             "llm": {
                 "provider": "openai",
                 "config": {
-                    "model": "gemini-3.5-flash",
-                    "api_key": GEMINI_PROXY_KEY,
-                    "openai_base_url": GEMINI_PROXY_URL,
+                    "model": preset.model,
+                    "api_key": preset.get_api_key(),
+                    "openai_base_url": preset.base_url,
                     "temperature": 0.0,
                 },
             },
             "embedder": {
-                "provider": "huggingface",
+                "provider": preset.embedding.provider,
                 "config": {
-                    # 中文 K12 场景实测 bge-small-zh-v1.5 区分度 0.467 vs all-MiniLM 0.264
-                    "model": "BAAI/bge-small-zh-v1.5",
-                    "embedding_dims": 512,
+                    "model": preset.embedding.model,
+                    "embedding_dims": preset.embedding.dim,
                 },
             },
         }
@@ -479,33 +490,73 @@ def main() -> int:
         default="",
         help="trace HTTP exporter endpoint 模板（含 {run_id} 占位），默认仅本地 jsonl",
     )
+    parser.add_argument(
+        "--llm-preset",
+        type=str,
+        default="gemini-3.5-flash",
+        help="LLM preset 名（configs/llm_presets/<name>.toml）。默认 gemini-3.5-flash",
+    )
+    parser.add_argument(
+        "--list-llm-presets",
+        action="store_true",
+        help="列出所有可用 preset 后退出",
+    )
     args = parser.parse_args()
+
+    # 加载 .env.local（含 KIDSBENCH_*_API_KEY 等 secret，已 chmod 600 + .gitignored）
+    load_dotenv_local()
+
+    if args.list_llm_presets:
+        print("可用 LLM presets:")
+        for name in list_preset_names():
+            try:
+                p = load_preset(name)
+                marker = "✓" if p.is_configured() else "✗（KEY 未配置）"
+                print(f"  {marker}  {name}  →  {p.display_name}  [{p.api_key_env}]")
+            except Exception as e:
+                print(f"  ⚠  {name}  →  parse error: {e}")
+        return 0
+
+    try:
+        preset = load_preset(args.llm_preset)
+    except ValueError as e:
+        print(f"[harness] {e}", file=sys.stderr)
+        return 2
+    print(f"[harness] LLM preset: {preset.display_name} ({preset.api_key_env})", flush=True)
+    # 给 mem0/memoryos/graphiti factory 用
+    global GEMINI_PROXY_URL, GEMINI_PROXY_KEY
+    GEMINI_PROXY_URL = preset.base_url
+    try:
+        GEMINI_PROXY_KEY = preset.get_api_key()
+    except RuntimeError as e:
+        print(f"[harness] {e}", file=sys.stderr)
+        return 2
 
     questions = load_questions(args.questions)
     print(f"[harness] loaded {len(questions)} questions from {args.questions}", flush=True)
 
     adapters = make_baseline_adapters()
     if args.include_mem0:
-        mem0 = make_mem0_adapter()
+        mem0 = make_mem0_adapter(preset)
         if mem0 is None:
             print("[harness] mem0 不可用（未装 mem0ai 或 sentence-transformers），跳过", flush=True)
         else:
             adapters["mem0"] = mem0
     if args.include_memoryos:
-        memoryos = make_memoryos_adapter(f"/tmp/kidsbench_memoryos_{args.run_id}")
+        memoryos = make_memoryos_adapter(preset, f"/tmp/kidsbench_memoryos_{args.run_id}")
         if memoryos is None:
             print("[harness] memoryos 不可用（未装 memoryos package），跳过", flush=True)
         else:
             adapters["memoryos"] = memoryos
     if args.include_graphiti:
-        graphiti = make_graphiti_adapter()
+        graphiti = make_graphiti_adapter(preset)
         if graphiti is None:
             print("[harness] graphiti 不可用（未装 graphiti-core 或隧道未起），跳过", flush=True)
         else:
             adapters["graphiti"] = graphiti
 
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
-    llm = ProxyLLMClient()
+    llm = ProxyLLMClient(preset)
 
     run_dir = args.out / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
