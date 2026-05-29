@@ -181,12 +181,50 @@ def test_batch_write_native_single_call(adapter: Mem0Adapter) -> None:
 
 @pytest.mark.integration
 def test_mem0_integration_write_search_clear() -> None:
-    has_mem0 = importlib.util.find_spec("mem0") is not None
-    has_key = bool(os.getenv("OPENAI_API_KEY") or os.getenv("DASHSCOPE_API_KEY"))
-    if not has_mem0 or not has_key:
-        pytest.skip("requires mem0 package and OPENAI_API_KEY/DASHSCOPE_API_KEY")
+    """真实 mem0 SDK 集成测试。
 
-    adapter = Mem0Adapter(disable_telemetry=True)
+    必跑环境: .venv-mem0 (含 mem0ai + sentence-transformers)
+    LLM: GEMINI_PROXY (OpenAI 兼容)
+    Embedder: 本地 sentence-transformers/all-MiniLM-L6-v2 (384 dim)
+    Vector store: 本地 qdrant path 模式
+    """
+    has_mem0 = importlib.util.find_spec("mem0") is not None
+    has_st = importlib.util.find_spec("sentence_transformers") is not None
+    if not (has_mem0 and has_st):
+        pytest.skip("requires mem0 + sentence-transformers (use .venv-mem0)")
+
+    os.environ.setdefault("MEM0_TELEMETRY", "false")
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+    config = {
+        "vector_store": {
+            "provider": "qdrant",
+            "config": {
+                "collection_name": "kidsbench_test",
+                "embedding_model_dims": 384,
+                "path": f"/tmp/kidsbench_qdrant_test_{int(time.time())}",
+                "on_disk": False,
+            },
+        },
+        "llm": {
+            "provider": "openai",
+            "config": {
+                "model": "gemini-3.5-flash",
+                "api_key": "fq8-1NLtsbVsiJhZaISmNeobvqY0bIZMoafPnKfkuz4",
+                "openai_base_url": "http://23.226.135.149:4000/v1",
+                "temperature": 0.0,
+            },
+        },
+        "embedder": {
+            "provider": "huggingface",
+            "config": {
+                "model": "sentence-transformers/all-MiniLM-L6-v2",
+                "embedding_dims": 384,
+            },
+        },
+    }
+
+    adapter = Mem0Adapter(config=config, disable_telemetry=True)
     user_id = f"u_int_{int(time.time())}"
 
     turns = [
@@ -199,9 +237,15 @@ def test_mem0_integration_write_search_clear() -> None:
         adapter.write(user_id, turn)
     adapter.flush(user_id)
 
+    # 验证 read 召回 + source_turn_ids 至少有一个非空（sidecar 兜底应该有）
     read = adapter.read(user_id, "团子喜欢吃什么", ReadOpts(top_k=5))
     assert isinstance(read.memories, list)
+    # 至少召回 1 条（mem0 LLM 可能合并掉一些）
+    assert len(read.memories) >= 1, "mem0 没召回任何记忆 — 集成失败"
+    # 至少一条 memory 有 source_turn_ids（sidecar 兜底）
+    assert any(m.source_turn_ids for m in read.memories), \
+        "所有 memory 都缺 source_turn_ids — 双兜底失效"
 
     adapter.clear(user_id)
     read_after_clear = adapter.read(user_id, "团子", ReadOpts(top_k=5))
-    assert read_after_clear.memories == []
+    assert read_after_clear.memories == [], "clear 后还有幽灵记忆"

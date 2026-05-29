@@ -49,6 +49,7 @@ markers = [
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+extend-exclude = ["scripts/integration"]  # 开发脚本：sys.path 注入后 import 必须 E402
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP", "RUF"]

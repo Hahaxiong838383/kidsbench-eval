@@ -8,7 +8,9 @@ __pycache__/
 .eggs/
 build/
 dist/
+# 独立 venv：主 .venv + 各家 SDK 独立 .venv-xxx（避免互相污染）
 .venv/
+.venv-*/
 venv/
 .pytest_cache/
 .mypy_cache/

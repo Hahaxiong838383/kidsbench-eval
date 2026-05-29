@@ -238,7 +238,7 @@ class Mem0Adapter(MemoryAdapter):
             raise AdapterError("user_id must not be empty")
 
         read_opts = opts or ReadOpts()
-        items = self.client.search(query=query, user_id=user_id, limit=read_opts.top_k)
+        items = self._call_search(query=query, user_id=user_id, top_k=read_opts.top_k)
         records = self._normalize_records(items)
 
         memories: list[Memory] = []
@@ -279,6 +279,26 @@ class Mem0Adapter(MemoryAdapter):
         self._logger.info("mem0_clear", user_id=user_id, deleted_count=deleted_count)
         return ClearStats(success=True, deleted_count=deleted_count)
 
+    def _call_search(self, *, query: str, user_id: str, top_k: int) -> Any:
+        """兼容 mem0 多版本 search 签名。
+
+        - mem0 OSS Memory (2.0+): search(query, *, top_k, filters={"user_id": ...})
+        - mem0 MemoryClient (云端) / 旧版 (1.x): search(query, user_id=, limit=)
+        - 契约测试 Mock: search(query=, user_id=, limit=)
+
+        真实 SDK 集成发现 2.0.4 改了签名（无 user_id 参数），故做双签名兜底。
+        """
+        # 优先尝试 2.0+ OSS 签名（filters + top_k）
+        # 注：2.0.4 用 _reject_top_level_entity_params 主动 raise ValueError 不是 TypeError
+        try:
+            return self.client.search(
+                query=query, filters={"user_id": user_id}, top_k=top_k
+            )
+        except (TypeError, ValueError):
+            pass
+        # 回退旧签名 / Mock 签名（user_id + limit）
+        return self.client.search(query=query, user_id=user_id, limit=top_k)
+
     @track_metrics(method="flush")
     @wrap_errors(mapping=_ERROR_MAPPING)
     def flush(self, user_id: str) -> FlushStats:
@@ -286,7 +306,11 @@ class Mem0Adapter(MemoryAdapter):
             raise AdapterError("user_id must not be empty")
         get_all = getattr(self.client, "get_all", None)
         if callable(get_all):
-            get_all(user_id=user_id, limit=1)
+            # mem0 2.0+ 用 filters；旧版 / Mock 用 user_id（同 _call_search 模式）
+            try:
+                get_all(filters={"user_id": user_id}, top_k=1)
+            except (TypeError, ValueError):
+                get_all(user_id=user_id, limit=1)
         return FlushStats(success=True, latency_ms=0.0)
 
     @track_metrics(method="consolidate")
