@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import type { RunGroup } from "../lib/types";
 
@@ -65,7 +66,11 @@ export default function Runs() {
           <tbody>
             {groups.map((g) => (
               <tr key={g.name} className="border-t border-slate-200 hover:bg-slate-50">
-                <td className="py-2 pr-4 font-mono">{g.name}</td>
+                <td className="py-2 pr-4 font-mono">
+                  <Link to={`/runs/${encodeURIComponent(g.name)}`} className="text-emerald-700 hover:underline">
+                    {g.name}
+                  </Link>
+                </td>
                 <td className="py-2 pr-4">{g.target_adapter}</td>
                 <td className="py-2 pr-4">
                   <span

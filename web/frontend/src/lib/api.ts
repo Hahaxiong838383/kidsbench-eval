@@ -8,6 +8,8 @@ import type {
   ContractInfo,
   ExperimentRow,
   MemorySystemMeta,
+  PipelineListItem,
+  PipelineResponse,
   RunGroup,
   StateSnapshot,
 } from "./types";
@@ -62,6 +64,15 @@ export const api = {
       "/api/runs/experiments" + (qs ? `?${qs}` : ""),
     );
   },
+
+  listPipelines: (group: string) =>
+    get<{ group: string; pipelines: PipelineListItem[]; count: number }>(
+      `/api/runs/groups/${encodeURIComponent(group)}/pipelines`,
+    ),
+  getPipeline: (group: string, adapter: string, qid: string) =>
+    get<PipelineResponse>(
+      `/api/runs/groups/${encodeURIComponent(group)}/pipeline/${encodeURIComponent(adapter)}/${encodeURIComponent(qid)}`,
+    ),
 
   runsLatest: () =>
     get<{

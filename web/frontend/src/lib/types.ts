@@ -124,6 +124,37 @@ export interface ExperimentRow {
   llm_tokens_out?: number;
 }
 
+// Trace span event（B1）
+export interface SpanEvent {
+  event_id: number;
+  span_id: string;
+  parent_id: string | null;
+  name: string;
+  type: "ENTER" | "EXIT" | "ATTR";
+  ts: number;
+  duration_ms?: number;
+  // 任意 attrs
+  [key: string]: unknown;
+}
+
+export interface PipelineResponse {
+  group: string;
+  adapter: string;
+  qid: string;
+  events: SpanEvent[];
+  events_count?: number;
+  source?: string;
+  note?: string;
+}
+
+export interface PipelineListItem {
+  filename: string;
+  adapter: string;
+  qid: string;
+  size_bytes: number;
+  mtime: number;
+}
+
 export interface StateSnapshot {
   adapter: string;
   real_time: boolean;

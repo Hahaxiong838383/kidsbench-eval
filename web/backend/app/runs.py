@@ -201,6 +201,98 @@ def list_experiments(
     }
 
 
+@router.get("/groups/{group_name}/pipeline/{adapter}/{qid}")
+def get_pipeline(group_name: str, adapter: str, qid: str) -> dict:
+    """读取单个 (group, adapter, qid) 三元组的 pipeline.jsonl events。
+
+    文件路径约定（harness/run_eval.py 写入）：
+        runs/<group_name>/pipelines/<adapter>_<qid>_<group_name>.jsonl
+
+    返回 events 数组，前端 PipelineTimeline 直接渲染。
+    """
+    group_dir = RUNS_PATH / group_name
+    if not group_dir.is_dir():
+        raise HTTPException(status_code=404, detail=f"group not found: {group_name}")
+
+    pipeline_dir = group_dir / "pipelines"
+    if not pipeline_dir.is_dir():
+        return {
+            "group": group_name,
+            "adapter": adapter,
+            "qid": qid,
+            "events": [],
+            "note": "no pipelines/ dir; run with --trace to generate",
+        }
+
+    # 文件名约定 + fallback：尝试几种命名
+    candidates = [
+        pipeline_dir / f"{adapter}_{qid}_{group_name}.jsonl",
+        pipeline_dir / f"{adapter}_{qid}.jsonl",
+    ]
+    pipeline_file = next((p for p in candidates if p.is_file()), None)
+    if pipeline_file is None:
+        # 兜底：扫目录找最佳匹配
+        for f in pipeline_dir.glob(f"*{adapter}*{qid}*.jsonl"):
+            pipeline_file = f
+            break
+
+    if pipeline_file is None:
+        return {
+            "group": group_name,
+            "adapter": adapter,
+            "qid": qid,
+            "events": [],
+            "note": f"pipeline file not found (looked for {adapter}_{qid}_*.jsonl)",
+        }
+
+    events = list(_iter_results_jsonl(pipeline_file))
+    return {
+        "group": group_name,
+        "adapter": adapter,
+        "qid": qid,
+        "events": events,
+        "events_count": len(events),
+        "source": str(pipeline_file.relative_to(RUNS_PATH)),
+    }
+
+
+@router.get("/groups/{group_name}/pipelines")
+def list_pipelines(group_name: str) -> dict:
+    """列出该 group 下所有 pipeline.jsonl 文件（哪些 (adapter, qid) 有 trace 数据）。"""
+    group_dir = RUNS_PATH / group_name
+    pipeline_dir = group_dir / "pipelines"
+    if not pipeline_dir.is_dir():
+        return {"group": group_name, "pipelines": []}
+
+    items = []
+    for f in sorted(pipeline_dir.glob("*.jsonl")):
+        # 解析文件名 <adapter>_<qid>_<group>.jsonl
+        stem = f.stem
+        parts = stem.split("_")
+        if len(parts) >= 3:
+            # 简单粗暴：第一部分 adapter，第二部分 qid，剩余 group
+            adapter = parts[0]
+            qid = "_".join(parts[1:3]) if parts[1] == "q" else parts[1]
+            if not qid.startswith("q_"):
+                # 兜底匹配 q_xxx 模式
+                for i, part in enumerate(parts):
+                    if part == "q" and i + 1 < len(parts):
+                        qid = f"q_{parts[i + 1]}"
+                        adapter = "_".join(parts[:i])
+                        break
+        else:
+            adapter = parts[0] if parts else "unknown"
+            qid = "unknown"
+        items.append({
+            "filename": f.name,
+            "adapter": adapter,
+            "qid": qid,
+            "size_bytes": f.stat().st_size,
+            "mtime": f.stat().st_mtime,
+        })
+    return {"group": group_name, "pipelines": items, "count": len(items)}
+
+
 @router.get("/latest")
 def latest_per_adapter() -> dict:
     """每个 adapter 最近一次的成绩（首页用）。"""
