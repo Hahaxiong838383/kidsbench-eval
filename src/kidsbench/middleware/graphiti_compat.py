@@ -257,3 +257,266 @@ def make_st_embedder(
             ]
 
     return STEmbedder()
+
+
+# ============= 真实 Graphiti async 实例 → adapter Mock 接口 wrapper =============
+
+
+class _RealGraphitiWrapper:
+    """适配真实 graphiti async 实例到 GraphitiAdapter 期望的 Mock 接口。
+
+    真实 graphiti 0.18.9 API（跟 codex 假设差异巨大）:
+    - add_episode(name, episode_body, source_description, reference_time, source, group_id, ...)
+      —— **没有 metadata 参数**
+    - search(query, center_node_uuid, group_ids, num_results, search_filter)
+    - remove_episode(episode_uuid) —— **没有 delete_session（codex 假设错的）**
+
+    adapter Mock 假设的接口:
+    - add_episode(name, episode_body, metadata) —— metadata dict 含 turn_id/role/user_id/ts
+    - search(query, search_config) —— search_config dict
+    - delete_session(name) —— 按 session_name 删
+
+    Wrapper 工作：
+    - add_episode: 从 metadata 提取 group_id (user_id) + reference_time，turn_id/role 拼到
+      source_description，让 graphiti LLM 抽取时看到，episode_uuid 缓存在 session_name → []
+    - search: search_config dict 拆 group_ids / num_results
+    - delete_session: 查 episode_uuids by session_name 挨个 remove_episode（无原生按 name 删）
+    """
+
+    def __init__(self, graphiti: Any) -> None:
+        import asyncio
+        import threading
+        from datetime import datetime, timezone
+
+        from graphiti_core.nodes import EpisodeType
+
+        self._g = graphiti
+        self._EpisodeType = EpisodeType
+        self._datetime = datetime
+        self._timezone = timezone
+        # session_name → list[episode_uuid]，adapter clear 时用
+        self._episode_uuids_by_session: dict[str, list[str]] = {}
+
+        # 关键：持久 background event loop（独立 thread）
+        # 因为 graphiti 的 FalkorDB driver 用 redis.asyncio 持久化连接，
+        # 连接绑定第一个建立它的 loop。如果 adapter._run 每次 asyncio.run
+        # 新建 loop，连接复用时会触发 'Event loop is closed' RuntimeError。
+        # 通过持久 loop 让所有 async 调用走同一 loop，连接稳定。
+        self._loop = asyncio.new_event_loop()
+        self._thread = threading.Thread(
+            target=self._loop.run_forever, daemon=True, name="kidsbench-graphiti-loop"
+        )
+        self._thread.start()
+
+    def _run_async(self, coro: Any) -> Any:
+        """同步等 coroutine 在 background loop 完成。"""
+        import asyncio
+
+        fut = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        return fut.result()
+
+    def add_episode(
+        self, name: str, episode_body: str, metadata: dict | None = None
+    ) -> dict[str, Any]:
+        """Sync 接口；内部走 background loop 跑真实 async graphiti.add_episode。
+
+        返 sync result 让 adapter._run 直接 return（不会再 asyncio.run 一次）。
+        """
+        return self._run_async(self._add_episode_async(name, episode_body, metadata))
+
+    async def _add_episode_async(
+        self, name: str, episode_body: str, metadata: dict | None = None
+    ) -> dict[str, Any]:
+        metadata = metadata or {}
+        # group_id 优先从 metadata 取 user_id，否则从 session_name 解析（u_{user_id}_{session_id}）
+        group_id = (
+            metadata.get("user_id")
+            or metadata.get("group_id")
+            or self._parse_user_id_from_session(name)
+            or "default"
+        )
+
+        # reference_time 从 metadata.ts 或 current_time（float 时间戳）取
+        ts = metadata.get("ts") or metadata.get("current_time")
+        if isinstance(ts, (int, float)):
+            ref_time = self._datetime.fromtimestamp(float(ts), tz=self._timezone.utc)
+        else:
+            ref_time = self._datetime.now(self._timezone.utc)
+
+        # 把 metadata 关键字段拼到 source_description（让 graphiti LLM 抽取时看见）
+        turn_id = metadata.get("turn_id", "")
+        role = metadata.get("role", "user")
+        source_desc = f"K12 chat[turn_id={turn_id}, role={role}]"
+
+        result = await self._g.add_episode(
+            name=name,
+            episode_body=episode_body,
+            source_description=source_desc,
+            reference_time=ref_time,
+            source=self._EpisodeType.message,
+            group_id=str(group_id),
+        )
+
+        # AddEpisodeResults: episode/nodes/edges
+        ep_uuid = self._safe_uuid(getattr(result, "episode", None))
+        if ep_uuid:
+            self._episode_uuids_by_session.setdefault(name, []).append(ep_uuid)
+
+        nodes = getattr(result, "nodes", None) or []
+        edges = getattr(result, "edges", None) or []
+        node_uuids = [self._safe_uuid(n) for n in nodes]
+        edge_uuids = [self._safe_uuid(e) for e in edges]
+
+        return {
+            "entity_id": ep_uuid or "",
+            "uuid": ep_uuid or "",
+            "entity_ids": [u for u in node_uuids if u],
+            "relation_ids": [u for u in edge_uuids if u],
+            # 让 adapter _record_belongs_to_user 检查能命中
+            "metadata": {
+                "session_name": name,
+                "turn_id": turn_id,
+                "user_id": group_id,
+            },
+        }
+
+    def search(self, query: str, search_config: Any = None) -> dict[str, Any]:
+        """Sync 接口；内部走 background loop。"""
+        return self._run_async(self._search_async(query, search_config))
+
+    async def _search_async(
+        self, query: str, search_config: Any = None
+    ) -> dict[str, Any]:
+        # search_config 可能是 dict 或 string (graphiti recipe name) 或 None
+        # adapter 的 _default_search_config 默认是 'COMBINED_HYBRID_SEARCH_RRF' 字符串
+        if isinstance(search_config, dict):
+            group_ids = search_config.get("group_ids")
+            num_results = int(search_config.get("num_results", 10))
+        else:
+            # string recipe / None: 无 group_ids 限制（adapter sidecar 后续会过滤）
+            group_ids = None
+            num_results = 10
+
+        edges = await self._g.search(
+            query=query,
+            group_ids=group_ids,
+            num_results=num_results,
+        )
+
+        items: list[dict[str, Any]] = []
+        for e in edges:
+            uuid = self._safe_uuid(e) or ""
+            fact = str(getattr(e, "fact", "") or "")
+            name = str(getattr(e, "name", "") or "")
+            text = fact or name or uuid
+            score_attr = getattr(e, "score", None)
+            try:
+                score = float(score_attr) if score_attr is not None else 0.85
+            except (TypeError, ValueError):
+                score = 0.85
+            items.append(
+                {
+                    "memory_id": uuid,
+                    "uuid": uuid,
+                    "name": fact or name,
+                    "text": text,
+                    "score": score,
+                    "rrf_score": score,
+                    "metadata": {},
+                }
+            )
+        return {"items": items}
+
+    def delete_session(self, name: str) -> dict[str, bool]:
+        return self._run_async(self._delete_session_async(name))
+
+    async def _delete_session_async(self, name: str) -> dict[str, bool]:
+        ep_uuids = self._episode_uuids_by_session.pop(name, [])
+        for uuid in ep_uuids:
+            try:
+                await self._g.remove_episode(uuid)
+            except Exception:
+                pass
+        return {"ok": True}
+
+    def flush_pending(self) -> dict[str, bool]:
+        return {"ok": True}
+
+    def get_stats(self, user_id: str) -> dict[str, int]:
+        # graphiti 0.18.9 没暴露直接的 stats API；这里返回零（评测主要看 sidecar 统计）
+        return {"node_count": 0, "edge_count": 0, "episode_count": 0}
+
+    @staticmethod
+    def _safe_uuid(obj: Any) -> str:
+        if obj is None:
+            return ""
+        uuid = getattr(obj, "uuid", None)
+        return str(uuid) if uuid else ""
+
+    @staticmethod
+    def _parse_user_id_from_session(session_name: str) -> str | None:
+        """从 'u_{user_id}_{session_id}' 解析 user_id（GraphitiAdapter._session_name 格式）。"""
+        if not session_name.startswith("u_"):
+            return None
+        parts = session_name.split("_")
+        if len(parts) >= 3:
+            return parts[1]
+        return None
+
+
+def make_real_graphiti_client_factory(
+    *,
+    api_key: str,
+    base_url: str,
+    model: str = "gemini-3.5-flash",
+    falkor_host: str = "127.0.0.1",
+    falkor_port: int = 16379,
+    falkor_database: str = "kidsbench_eval",
+    embedder_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+    reasoning_effort: str = "minimal",
+) -> Any:
+    """工厂：返回一个 client_factory callable（适合 GraphitiAdapter config['client_factory']）。
+
+    工厂被 adapter 调用时（接收 backend/uri/config kwargs）返回 _RealGraphitiWrapper 实例。
+
+    用法（harness 中）：
+        from kidsbench.middleware.graphiti_compat import make_real_graphiti_client_factory
+        adapter = GraphitiAdapter(
+            config={"client_factory": make_real_graphiti_client_factory(api_key=..., ...)},
+            backend="falkordb", uri="redis://127.0.0.1:16379",
+        )
+    """
+    if not _GRAPHITI_AVAILABLE:
+        raise ImportError("graphiti-core not installed")
+
+    def _factory(**_: Any) -> Any:
+        from graphiti_core import Graphiti
+        from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
+        from graphiti_core.driver.falkordb_driver import FalkorDriver
+
+        config = _LLMConfig(  # type: ignore[misc]
+            api_key=api_key,
+            base_url=base_url,
+            model=model,
+            small_model=model,  # graphiti 默认 small=gpt-4.1-nano，需显式同 model
+            temperature=0.0,
+        )
+        llm = KidsBenchGraphitiLLMClient(config=config, reasoning_effort=reasoning_effort)
+        reranker = OpenAIRerankerClient(config=config)
+        embedder = make_st_embedder(model_name=embedder_model)
+        driver = FalkorDriver(
+            host=falkor_host, port=falkor_port, database=falkor_database
+        )
+        graphiti = Graphiti(
+            llm_client=llm,
+            embedder=embedder,
+            cross_encoder=reranker,
+            graph_driver=driver,
+        )
+        wrapper = _RealGraphitiWrapper(graphiti)
+        # graphiti 0.18.9 必须先 build_indices_and_constraints（FalkorDB 也需要）
+        # 必须走 wrapper 的 background loop，否则连接绑定 stale loop
+        wrapper._run_async(graphiti.build_indices_and_constraints())
+        return wrapper
+
+    return _factory

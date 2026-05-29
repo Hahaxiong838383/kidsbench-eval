@@ -135,6 +135,46 @@ def make_memoryos_adapter(tmp_root: str = "/tmp/kidsbench_memoryos_eval") -> Mem
     return MemoryOSAdapter(config=config)
 
 
+def make_graphiti_adapter() -> MemoryAdapter | None:
+    """如果 .venv-graphiti 可用 + FalkorDB 隧道在，返回 GraphitiAdapter；否则 None。
+
+    用法：
+        ssh -f -N -L 16379:192.168.61.18:16379 mini  # 建隧道
+        .venv-graphiti/bin/python -m harness.run_eval --include-graphiti
+    """
+    try:
+        import graphiti_core  # noqa: F401
+
+        from kidsbench.adapters.graphiti_adapter import GraphitiAdapter
+        from kidsbench.middleware.graphiti_compat import (
+            make_real_graphiti_client_factory,
+        )
+    except (ImportError, ModuleNotFoundError):
+        return None
+
+    factory = make_real_graphiti_client_factory(
+        api_key=GEMINI_PROXY_KEY,
+        base_url=GEMINI_PROXY_URL,
+        model="gemini-3.5-flash",
+        falkor_host="127.0.0.1",
+        falkor_port=16379,
+        falkor_database="kidsbench_eval",
+        embedder_model="sentence-transformers/all-MiniLM-L6-v2",
+        reasoning_effort="minimal",
+    )
+    try:
+        return GraphitiAdapter(
+            backend="falkordb",
+            uri="redis://127.0.0.1:16379",
+            # skip_avx2_check: FalkorDB 远程跑在 QNAP x86（有 AVX2），
+            # 本机 macOS arm64 ARM 不需检测（gemini Wave1 Graphiti.2 "AVX2 张冠李戴" finding）
+            config={"client_factory": factory, "skip_avx2_check": True},
+        )
+    except Exception as e:
+        print(f"[harness] graphiti adapter 初始化失败: {e}", flush=True)
+        return None
+
+
 def make_mem0_adapter() -> MemoryAdapter | None:
     """如果 .venv-mem0 可用就返 Mem0Adapter，否则 None。
 
@@ -391,6 +431,7 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=Path("runs"))
     parser.add_argument("--include-mem0", action="store_true", help="是否跑 Mem0Adapter（需 .venv-mem0）")
     parser.add_argument("--include-memoryos", action="store_true", help="是否跑 MemoryOSAdapter（需 .venv-memoryos）")
+    parser.add_argument("--include-graphiti", action="store_true", help="是否跑 GraphitiAdapter（需 .venv-graphiti + 隧道 16379→QNAP）")
     parser.add_argument("--run-id", type=str, default=f"run_{int(time.time())}")
     args = parser.parse_args()
 
@@ -410,6 +451,12 @@ def main() -> int:
             print("[harness] memoryos 不可用（未装 memoryos package），跳过", flush=True)
         else:
             adapters["memoryos"] = memoryos
+    if args.include_graphiti:
+        graphiti = make_graphiti_adapter()
+        if graphiti is None:
+            print("[harness] graphiti 不可用（未装 graphiti-core 或隧道未起），跳过", flush=True)
+        else:
+            adapters["graphiti"] = graphiti
 
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
     llm = ProxyLLMClient()

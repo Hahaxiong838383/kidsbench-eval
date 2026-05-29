@@ -97,6 +97,9 @@ class GraphitiAdapter(MemoryAdapter):
             "ts": turn.timestamp,
             "role": turn.role,
             "current_time": _iso_time(get_clock().now()),
+            # user_id 显式传入 metadata，避免 wrapper 从 session_name 解析时
+            # user_id 含 underscore 被截断（如 'eval_graphiti_q_001' 会被 split 错位）
+            "user_id": user_id,
         }
         try:
             self._acquire_provider_token("openai", tokens=1)
@@ -458,7 +461,10 @@ class GraphitiAdapter(MemoryAdapter):
 
     def _verify_user_empty(self, user_id: str) -> bool:
         probe = f"u_{user_id}"
-        payload = self._run(self._client.search(query=probe, search_config=self._default_search_config))
+        # 用 dict config 限定 group_ids=[user_id]，避免召回其他 user 的数据让 verify 永远失败
+        # 真实 wrapper 需要 dict 才能拿到 group_ids；Mock client 也能接受 dict
+        cfg = {"group_ids": [user_id], "num_results": 5}
+        payload = self._run(self._client.search(query=probe, search_config=cfg))
         records = _extract_search_records(payload)
         return not records
 
