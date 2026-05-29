@@ -30,49 +30,24 @@ GEMINI_PROXY_URL = "http://23.226.135.149:4000/v1"
 GEMINI_PROXY_KEY = "fq8-1NLtsbVsiJhZaISmNeobvqY0bIZMoafPnKfkuz4"
 
 
-def make_st_embedder():
-    """自定义 sentence-transformers 适配的 EmbedderClient。"""
-    from graphiti_core.embedder.client import EmbedderClient
-    from sentence_transformers import SentenceTransformer
-
-    class STEmbedder(EmbedderClient):
-        def __init__(self, model_name: str = "sentence-transformers/all-MiniLM-L6-v2") -> None:
-            self._model = SentenceTransformer(model_name)
-
-        async def create(self, input_data):
-            if isinstance(input_data, str):
-                texts = [input_data]
-            else:
-                texts = list(input_data)
-            embs = self._model.encode(texts, show_progress_bar=False).tolist()
-            if len(embs) == 1:
-                return embs[0]
-            return [list(e) for e in embs]
-
-        async def create_batch(self, input_data_list):
-            embs = self._model.encode(input_data_list, show_progress_bar=False).tolist()
-            return [list(e) for e in embs]
-
-    return STEmbedder()
-
-
 def make_llm_client():
-    """GEMINI_PROXY 作为 Graphiti OpenAI client。"""
+    """KidsBench 自定义 LLM client 用 chat.completions 适配 GEMINI_PROXY。"""
     from graphiti_core.llm_client.config import LLMConfig
-    from graphiti_core.llm_client.openai_client import OpenAIClient
+
+    from kidsbench.middleware.graphiti_compat import KidsBenchGraphitiLLMClient
 
     config = LLMConfig(
         api_key=GEMINI_PROXY_KEY,
         base_url=GEMINI_PROXY_URL,
         model="gemini-3.5-flash",
+        small_model="gemini-3.5-flash",  # graphiti 内部 small 模型调用也要走 proxy
         temperature=0.0,
     )
-    # OpenAIClient 0.29.1 内置 reasoning='minimal' 默认（正好我们需要）
-    return OpenAIClient(config=config, reasoning="minimal", verbosity="low")
+    return KidsBenchGraphitiLLMClient(config=config, reasoning_effort="minimal")
 
 
 def make_reranker():
-    """Graphiti default OpenAIRerankerClient 需 OPENAI_API_KEY，走 GEMINI_PROXY。"""
+    """Reranker 暂用 graphiti 默认（如果它走 responses.parse 失败，改用 None 或自定义）。"""
     from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerClient
     from graphiti_core.llm_client.config import LLMConfig
 
@@ -83,6 +58,12 @@ def make_reranker():
         temperature=0.0,
     )
     return OpenAIRerankerClient(config=config)
+
+
+def make_st_embedder():
+    """复用 graphiti_compat 中的 ST embedder 工厂。"""
+    from kidsbench.middleware.graphiti_compat import make_st_embedder as _make
+    return _make()
 
 
 def make_falkor_driver():
