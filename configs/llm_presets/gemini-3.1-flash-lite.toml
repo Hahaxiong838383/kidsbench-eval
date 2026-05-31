@@ -1,0 +1,18 @@
+# KidsBench LLM Preset — Gemini 3.1 Flash Lite（评测主用）
+#
+# 川哥指令（2026-05-31）：评测答题 LLM 用较弱模型，避免 LLM 能力太强靠常识
+# 硬猜污染评测（无法区分"记忆系统好"还是"LLM 强"）。
+# proxy 上 3.1 系列的 flash 型号唯一就是 gemini-3.1-flash-lite-preview。
+name = "gemini-3.1-flash-lite"
+display_name = "Gemini 3.1 Flash Lite（评测主用，弱模型防常识污染）"
+provider = "gemini-proxy"
+base_url = "http://23.226.135.149:4000/v1"
+api_key_env = "KIDSBENCH_GEMINI_API_KEY"
+model = "gemini-3.1-flash-lite-preview"
+reasoning_effort = "minimal"
+max_tokens = 4096
+
+[embedding]
+provider = "huggingface"
+model = "BAAI/bge-small-zh-v1.5"
+dim = 512

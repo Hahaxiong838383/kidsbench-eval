@@ -522,7 +522,7 @@ def main() -> int:
     parser.add_argument(
         "--llm-preset",
         type=str,
-        default="gemini-3.5-flash",
+        default="gemini-3.1-flash-lite",
         help="LLM preset 名（configs/llm_presets/<name>.toml）。默认 gemini-3.5-flash",
     )
     parser.add_argument(
