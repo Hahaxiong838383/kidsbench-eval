@@ -1,0 +1,19 @@
+# KidsBench LLM Preset — Gemini 3.0 Flash（评测主用）
+#
+# 川哥拍板（2026-05-31）：评测答题 LLM 用 gemini-3-flash-preview。
+# 对比 3.0/2.5/3.1-flash-lite 实测：6 题 smoke 三者诚实度+能力一致，
+# 3.0-flash 速度最快（1354ms，比 3.1-flash-lite 快 2.5x），是最优平衡。
+# 弱模型逻辑：无记忆诚实说"不知道"(evasive 不污染)，有记忆能正确答对。
+name = "gemini-3-flash"
+display_name = "Gemini 3.0 Flash（评测主用，诚实+够用+最快）"
+provider = "gemini-proxy"
+base_url = "http://23.226.135.149:4000/v1"
+api_key_env = "KIDSBENCH_GEMINI_API_KEY"
+model = "gemini-3-flash-preview"
+reasoning_effort = "minimal"
+max_tokens = 4096
+
+[embedding]
+provider = "huggingface"
+model = "BAAI/bge-small-zh-v1.5"
+dim = 512
