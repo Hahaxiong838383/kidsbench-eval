@@ -35,7 +35,9 @@ fi
 step() { echo; echo "▶ [$1] $2"; }
 
 step "1/6" "本地 build frontend dist"
-(cd "$PROJECT/web/frontend" && npm run build 2>&1 | tail -3)
+VITE_BUILD_ID="$(date +%m%d-%H%M)"
+echo "  build id: $VITE_BUILD_ID"
+(cd "$PROJECT/web/frontend" && VITE_BUILD_ID="$VITE_BUILD_ID" npm run build 2>&1 | tail -3)
 
 step "2/6" "打包 backend / frontend / configs（用 COPY_FILE_FLAG 防 macOS dot-underscore）"
 rm -f "$TAR"

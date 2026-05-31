@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import ErrorBoundary from "./ErrorBoundary";
 
 const NAV = [
   { to: "/", label: "总览" },
@@ -10,15 +11,20 @@ const NAV = [
   { to: "/system", label: "系统" },
 ];
 
+// build 时刻（vite 注入），用于页脚版本提示，帮用户确认是否最新
+const BUILD_ID =
+  (import.meta.env?.VITE_BUILD_ID as string | undefined) ?? "dev";
+
 export default function Layout() {
+  const location = useLocation();
   return (
     <div className="min-h-full flex flex-col">
-      <nav className="border-b border-slate-200 bg-white/90 backdrop-blur backdrop-blur sticky top-0 z-10">
+      <nav className="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center gap-6">
           <div className="font-semibold text-emerald-600">KidsBench</div>
-          <span className="text-xs text-slate-500">B0 · 架构白盒</span>
+          <span className="text-xs text-slate-500">评测白盒平台</span>
           <div className="flex-1" />
-          <div className="flex gap-4 text-sm">
+          <div className="flex gap-4 text-sm flex-wrap">
             {NAV.map((n) => (
               <NavLink
                 key={n.to}
@@ -38,11 +44,14 @@ export default function Layout() {
       </nav>
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
-        <Outlet />
+        {/* key=pathname：切换路由时重置 ErrorBoundary，一页崩溃不影响其他页 */}
+        <ErrorBoundary key={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <footer className="border-t border-slate-200 py-4 text-xs text-slate-500 text-center">
-        KidsBench Web · B0 阶段 · 架构白盒展示
+        KidsBench Web · build {BUILD_ID} · 若页面异常请强刷（Cmd/Ctrl+Shift+R）
       </footer>
     </div>
   );
