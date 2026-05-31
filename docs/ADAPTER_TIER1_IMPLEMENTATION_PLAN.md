@@ -91,13 +91,19 @@ E-T6Q ──→ 依赖题库出双 query（可 mock 先建逻辑）
 
 ---
 
-## 需要川哥定的 3 个决策点（开工前）
+## 3 个决策点（川哥已定 2026-05-31）
 
-| # | 决策 | 选项 | cc 倾向 |
-|---|------|------|---------|
-| **①** | NLI judge 用什么模型（必须独立于被测 gemini-3-flash） | a) GPT-4o-mini（便宜稳）b) Qwen（国产对齐）c) gemini-3-pro（同族不同档，但仍共享 Google 偏见，不推荐） | **a) GPT-4o-mini**，与被测 Google 系彻底解耦，judge 成本低 |
-| **②** | Attribution F1 与现有 recall_score 关系 | a) 并列（保留 recall 兼容旧 run）b) 替换 | **a) 并列**，旧 run 可比 + 平滑迁移 |
-| **③** | memoryos swap=False 怎么处理 | a) Monkey Patch 强注入统一 client b) 标 Model-Locked 隔离对比 | **a) 先试 Monkey Patch**，失败再降 b（Model-Locked 是兜底） |
+| # | 决策 | **川哥定案** |
+|---|------|---------|
+| **①** | NLI judge 模型（必须独立于被测 gemini-3-flash） | ✅ **Qwen 系**（国产对齐，中文 NLI 更准，与被测 Google 系解耦） |
+| **②** | Attribution F1 与现有 recall_score 关系 | ✅ **并列保留**（旧 run 可比 + 平滑迁移） |
+| **③** | memoryos swap=False 处理 | ✅ **先试 Monkey Patch**，失败降级 Model-Locked 隔离 |
+
+### ⚠️ Qwen judge 落地前置（Phase 2 阻塞，待川哥提供）
+- 项目 configs/.env.local **无 Qwen 配置**（已 grep 确认）。
+- 记忆 reference_api_keys：`QWEN_API_KEY`（DashScope，qwen3.5-27b）在 **Studio 机器** `/Users/fu-121/mycc-brain/.env`，**不在 Air/kidsbench**。
+- **待川哥确认**：① 用哪个 Qwen 模型（qwen3.5-27b / qwen-max / qwen-plus，NLI 判定中等档够用）② key 如何给 kidsbench（复用 Studio QWEN_API_KEY 走公网 DashScope，还是新建）→ 存 `.env.local` 脱敏（chmod 600 gitignored，比照 gemini/deepseek）③ endpoint（DashScope OpenAI 兼容模式待确认）。
+- **不阻塞 Phase 0/1**（无 Qwen 依赖），仅阻塞 Phase 2。
 
 ---
 
