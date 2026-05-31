@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import __version__
 from .architecture import router as architecture_router
 from .config import CORS_ORIGINS
+from .events import router as events_router
 from .llm_presets import router as llm_presets_router
 from .runs import router as runs_router
 from .state import router as state_router
@@ -50,6 +51,7 @@ app.include_router(architecture_router)
 app.include_router(state_router)
 app.include_router(runs_router)
 app.include_router(llm_presets_router)
+app.include_router(events_router)
 
 
 @app.get("/healthz")

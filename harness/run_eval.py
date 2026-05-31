@@ -471,6 +471,29 @@ def evaluate_one(
     )
 
 
+def _post_trace_complete(event_tpl: str, run_id: str, headers: dict[str, str]) -> None:
+    """通知 SSE backend run 结束（POST .../api/run/{run_id}/complete）。
+
+    从 event 模板推导 complete URL（替换尾部 /event → /complete）。失败静默。
+    """
+    import urllib.error
+    import urllib.request
+
+    try:
+        event_url = event_tpl.format(run_id=run_id)
+        complete_url = event_url.rsplit("/event", 1)[0] + "/complete"
+        req = urllib.request.Request(
+            complete_url,
+            data=b"{}",
+            headers={"Content-Type": "application/json", **headers},
+            method="POST",
+        )
+        with urllib.request.urlopen(req, timeout=3.0):
+            pass
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, Exception):  # noqa: BLE001
+        pass  # complete 通知失败不阻断评测
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="KidsBench Harness L2 主控")
     parser.add_argument("--questions", type=Path, default=Path("questions/smoke.jsonl"))
@@ -489,6 +512,12 @@ def main() -> int:
         type=str,
         default="",
         help="trace HTTP exporter endpoint 模板（含 {run_id} 占位），默认仅本地 jsonl",
+    )
+    parser.add_argument(
+        "--trace-http-auth",
+        type=str,
+        default="",
+        help="公网 SSE backend 的 Basic Auth，格式 user:pass（经 nginx 时需要）",
     )
     parser.add_argument(
         "--llm-preset",
@@ -523,6 +552,15 @@ def main() -> int:
         print(f"[harness] {e}", file=sys.stderr)
         return 2
     print(f"[harness] LLM preset: {preset.display_name} ({preset.api_key_env})", flush=True)
+
+    # trace HTTP 推送的 auth header（公网经 nginx Basic Auth 时需要）
+    _trace_http_headers: dict[str, str] = {}
+    if args.trace_http_auth:
+        import base64
+
+        token = base64.b64encode(args.trace_http_auth.encode()).decode()
+        _trace_http_headers["Authorization"] = f"Basic {token}"
+
     # 给 mem0/memoryos/graphiti factory 用
     global GEMINI_PROXY_URL, GEMINI_PROXY_KEY
     GEMINI_PROXY_URL = preset.base_url
@@ -587,14 +625,21 @@ def main() -> int:
                         pipeline_path.parent.mkdir(parents=True, exist_ok=True)
                         exporters = [JsonlExporter(pipeline_path)]
                         if args.trace_http:
+                            # 闭包捕获字面 trace_run_id（默认参数早绑定）。
+                            # 不能用 get_current_run_id：HttpExporter 后台线程
+                            # 不继承 contextvars，会拿到 None 静默丢弃所有 POST。
                             exporters.append(HttpExporter(
                                 endpoint_tpl=args.trace_http,
-                                run_id_getter=get_current_run_id,
+                                run_id_getter=(lambda rid=trace_run_id: rid),
+                                extra_headers=_trace_http_headers,
                             ))
                         set_exporter(MultiExporter(exporters))
                         with init_run(trace_run_id, qid=qid, adapter=adapter_name, run_group=args.run_id):
                             log = evaluate_one(traced_adapter, q, llm)
                         set_exporter(None)
+                        # 通知 SSE backend 该 run 结束（让前端实时页收 complete 帧）
+                        if args.trace_http:
+                            _post_trace_complete(args.trace_http, trace_run_id, _trace_http_headers)
                     else:
                         log = evaluate_one(traced_adapter, q, llm)
                 except Exception as e:

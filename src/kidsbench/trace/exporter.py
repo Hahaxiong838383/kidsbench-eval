@@ -117,6 +117,7 @@ class HttpExporter(Exporter):
         flush_interval: float = 0.5,
         max_retries: int = 3,
         timeout: float = 3.0,
+        extra_headers: dict[str, str] | None = None,
     ) -> None:
         self.endpoint_tpl = endpoint_tpl
         self.run_id_getter = run_id_getter
@@ -124,6 +125,8 @@ class HttpExporter(Exporter):
         self.flush_interval = flush_interval
         self.max_retries = max_retries
         self.timeout = timeout
+        # 公网经 nginx Basic Auth 时传 {"Authorization": "Basic ..."}
+        self.extra_headers = dict(extra_headers) if extra_headers else {}
         self._queue: queue.Queue = queue.Queue(maxsize=10000)
         self._stop = threading.Event()
         self._worker = threading.Thread(target=self._run_loop, daemon=True, name="trace-http-exporter")
@@ -175,10 +178,11 @@ class HttpExporter(Exporter):
         payload = json.dumps([e.to_dict() for e in batch], ensure_ascii=False).encode("utf-8")
         for attempt in range(self.max_retries):
             try:
+                headers = {"Content-Type": "application/json", **self.extra_headers}
                 req = urllib.request.Request(
                     url,
                     data=payload,
-                    headers={"Content-Type": "application/json"},
+                    headers=headers,
                     method="POST",
                 )
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
