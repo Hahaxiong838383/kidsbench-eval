@@ -370,10 +370,26 @@ def setup_oracle_for_question(adapter: MemoryAdapter, q: dict) -> None:
     adapter.set_gold_lookup(lookup)
 
 
-def build_prompt(query: str, memories: list[dict]) -> tuple[str, str]:
-    """组 prompt。"""
+def render_scene_context(scene_context: dict | None) -> str:
+    """把 scene_context（W3 模块A 当下感知快照）渲染成自然语言段。空则返回空串。
+
+    scene_context 只进 prompt（让 AI 在真实场景回应），不进 turns/write、不进判分。
+    """
+    if not scene_context:
+        return ""
+    parts = [f"{k}={v}" for k, v in scene_context.items() if v]
+    return f"当前场景：{' ｜ '.join(parts)}\n\n" if parts else ""
+
+
+def build_prompt(
+    query: str, memories: list[dict], scene_context: dict | None = None
+) -> tuple[str, str]:
+    """组 prompt。scene_context 默认 None → 完全向后兼容（system 与旧版一致）。"""
+    scene_block = render_scene_context(scene_context)
+    # 动态 system：有场景才提「当前场景」，无场景时与旧版逐字相同（保 27 题/14 题不破）
+    scene_hint = "「当前场景」和" if scene_block else ""
     system = (
-        "你是 K12 儿童 AI 陪伴助手。请基于「相关记忆」简短回答用户的问题。"
+        f"你是 K12 儿童 AI 陪伴助手。请结合{scene_hint}「相关记忆」简短回答用户的问题。"
         "如果记忆里没有相关信息，请直接说不知道，不要编造。"
         "回答控制在 30 字以内。"
     )
@@ -382,7 +398,7 @@ def build_prompt(query: str, memories: list[dict]) -> tuple[str, str]:
         memory_block = f"相关记忆：\n{context}"
     else:
         memory_block = "相关记忆：（无）"
-    user = f"{memory_block}\n\n用户问题：{query}\n\n你的回答："
+    user = f"{scene_block}{memory_block}\n\n用户问题：{query}\n\n你的回答："
     return system, user
 
 
@@ -474,7 +490,7 @@ def evaluate_one(
 
     # 6. 组 prompt + 调 LLM
     memory_dicts = [{"text": t} for t in recalled_texts]
-    system_p, user_p = build_prompt(q["query"], memory_dicts)
+    system_p, user_p = build_prompt(q["query"], memory_dicts, q.get("scene_context"))
     try:
         llm_resp = llm_client.complete(system=system_p, user=user_p, temperature=0.0, max_tokens=4096)
         answer = llm_resp.text.strip()
@@ -540,13 +556,13 @@ def _judge_answer(answer: str, q: dict, nli: NLIJudge | None) -> dict:
 
 def _read_and_answer(
     adapter: MemoryAdapter, query: str, llm_client: LLMClient, user_id: str,
-    current_timestamp: float | None,
+    current_timestamp: float | None, scene_context: dict | None = None,
 ) -> dict:
     """read → 组 prompt → 调 LLM。返回召回 + 答案。"""
     rr = adapter.read(user_id, query, ReadOpts(top_k=5, current_timestamp=current_timestamp))
     recalled_turn_ids = sorted({tid for m in rr.memories for tid in (m.source_turn_ids or [])})
     texts = [m.text for m in rr.memories]
-    system_p, user_p = build_prompt(query, [{"text": t} for t in texts])
+    system_p, user_p = build_prompt(query, [{"text": t} for t in texts], scene_context)
     resp = llm_client.complete(system=system_p, user=user_p, temperature=0.0, max_tokens=4096)
     return {
         "answer": resp.text.strip(), "recalled_turn_ids": recalled_turn_ids,
@@ -637,7 +653,9 @@ def evaluate_phased(
 
 def _run_t5(adapter, q, queries, llm_client, nli, user_id, ts, write_latency, ct) -> TurnLog:
     """T5 单 query：read+answer → NLI 判内容未失真 + Attribution。"""
-    res = _read_and_answer(adapter, queries.get("query", ""), llm_client, user_id, ct)
+    res = _read_and_answer(
+        adapter, queries.get("query", ""), llm_client, user_id, ct, q.get("scene_context")
+    )
     jd = _judge_answer(res["answer"], q, nli)
     attribution = attribution_f1(
         res["recalled_turn_ids"], q.get("gold_memory_ids", []), q.get("fact_distribution", "single")
@@ -657,8 +675,9 @@ def _run_t5(adapter, q, queries, llm_client, nli, user_id, ts, write_latency, ct
 
 def _run_t6(adapter, q, queries, llm_client, nli, user_id, ts, write_latency, ct) -> TurnLog:
     """T6 双 query 三态：control + scenario → pass/WARN/FAIL。"""
-    ctrl = _read_and_answer(adapter, queries["control_query"], llm_client, user_id, ct)
-    scen = _read_and_answer(adapter, queries["scenario_query"], llm_client, user_id, ct)
+    sc = q.get("scene_context")
+    ctrl = _read_and_answer(adapter, queries["control_query"], llm_client, user_id, ct, sc)
+    scen = _read_and_answer(adapter, queries["scenario_query"], llm_client, user_id, ct, sc)
     t6 = score_t6(
         ctrl["answer"], queries.get("control_expected", {}), scen["answer"],
         q.get("expected_facts", []), nli,
