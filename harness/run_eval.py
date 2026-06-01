@@ -27,7 +27,12 @@ from typing import Any
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from harness.scorer import JudgeResult, recall_score, regex_judge  # noqa: E402
+from harness.scorer import (  # noqa: E402
+    JudgeResult,
+    attribution_f1,
+    recall_score,
+    regex_judge,
+)
 from kidsbench.config import (  # noqa: E402
     LLMPreset,
     list_preset_names,
@@ -40,7 +45,13 @@ from kidsbench.contract import (  # noqa: E402
     ReadOpts,
     Turn,
 )
-from kidsbench.middleware import LLMClient, LLMResponse, inject  # noqa: E402
+from kidsbench.middleware import (  # noqa: E402
+    LLMClient,
+    LLMResponse,
+    NLIJudge,
+    inject,
+    judge_facts_nli,
+)
 from kidsbench.trace import (  # noqa: E402
     HttpExporter,
     JsonlExporter,
@@ -332,6 +343,10 @@ class TurnLog:
     timestamp: float
     write_latency_ms: float
     read_latency_ms: float
+    # Tier1 新增（默认值向后兼容）
+    attribution: dict | None = None
+    t6_state: str | None = None
+    nli_need_human: bool = False
 
 
 def setup_oracle_for_question(adapter: MemoryAdapter, q: dict) -> None:
@@ -368,7 +383,12 @@ def evaluate_one(
     adapter: MemoryAdapter,
     q: dict,
     llm_client: LLMClient,
+    nli: NLIJudge | None = None,
 ) -> TurnLog:
+    # T5/T6 双阶段题走 phases 编排（缺口2）
+    if "phases" in q:
+        return evaluate_phased(adapter, q, llm_client, nli)
+
     qid = q["qid"]
     user_id = f"eval_{adapter.name}_{qid}"
     ts = time.time()
@@ -420,7 +440,9 @@ def evaluate_one(
 
     # 5. 召回
     try:
-        rr = adapter.read(user_id, q["query"], ReadOpts(top_k=5))
+        rr = adapter.read(
+            user_id, q["query"], ReadOpts(top_k=5, current_timestamp=q.get("current_timestamp"))
+        )
         recalled_turn_ids = sorted({
             tid for m in rr.memories for tid in (m.source_turn_ids or [])
         })
@@ -439,6 +461,9 @@ def evaluate_one(
         )
 
     rmetric = recall_score(recalled_turn_ids, q.get("gold_memory_ids", []))
+    attribution = attribution_f1(
+        recalled_turn_ids, q.get("gold_memory_ids", []), q.get("fact_distribution", "single")
+    )
 
     # 6. 组 prompt + 调 LLM
     memory_dicts = [{"text": t} for t in recalled_texts]
@@ -458,8 +483,8 @@ def evaluate_one(
             timestamp=ts, write_latency_ms=write_latency, read_latency_ms=read_latency,
         )
 
-    # 7. 判分
-    jr: JudgeResult = regex_judge(answer, q)
+    # 7. 判分（新题型 expected_facts 走 NLI，旧题 expected_answer_points 走 regex）
+    jd = _judge_answer(answer, q, nli)
 
     # 8. 清场（评测后清干净）
     try:
@@ -478,13 +503,177 @@ def evaluate_one(
         llm_latency_ms=llm_resp.latency_ms,
         llm_tokens_in=llm_resp.cost_token_in,
         llm_tokens_out=llm_resp.cost_token_out,
-        judge_score=jr.score,
-        judge_verdict=jr.verdict,
-        judge_positive_hits=jr.positive_hits,
-        judge_negative_hits=jr.negative_hits,
+        judge_score=jd["score"],
+        judge_verdict=jd["verdict"],
+        judge_positive_hits=jd["positive_hits"],
+        judge_negative_hits=jd["negative_hits"],
         timestamp=ts,
         write_latency_ms=write_latency,
         read_latency_ms=read_latency,
+        attribution=attribution,
+        nli_need_human=jd["need_human"],
+    )
+
+
+def _judge_answer(answer: str, q: dict, nli: NLIJudge | None) -> dict:
+    """统一判分：有 nli + expected_facts → NLI 蕴含；否则 regex（旧 smoke 兼容）。"""
+    if nli is not None and q.get("expected_facts"):
+        r = judge_facts_nli(answer, q.get("expected_facts", []), q.get("negative_facts", []), nli)
+        return {
+            "score": r["score"], "verdict": r["verdict"],
+            "positive_hits": r["positive_hits"], "negative_hits": r["negative_hits"],
+            "need_human": r["need_human"],
+        }
+    jr: JudgeResult = regex_judge(answer, q)
+    return {
+        "score": jr.score, "verdict": jr.verdict,
+        "positive_hits": jr.positive_hits, "negative_hits": jr.negative_hits, "need_human": False,
+    }
+
+
+def _read_and_answer(
+    adapter: MemoryAdapter, query: str, llm_client: LLMClient, user_id: str,
+    current_timestamp: float | None,
+) -> dict:
+    """read → 组 prompt → 调 LLM。返回召回 + 答案。"""
+    rr = adapter.read(user_id, query, ReadOpts(top_k=5, current_timestamp=current_timestamp))
+    recalled_turn_ids = sorted({tid for m in rr.memories for tid in (m.source_turn_ids or [])})
+    texts = [m.text for m in rr.memories]
+    system_p, user_p = build_prompt(query, [{"text": t} for t in texts])
+    resp = llm_client.complete(system=system_p, user=user_p, temperature=0.0, max_tokens=4096)
+    return {
+        "answer": resp.text.strip(), "recalled_turn_ids": recalled_turn_ids,
+        "recalled_texts": texts, "n_mem": len(rr.memories), "resp": resp,
+        "read_latency": rr.latency_ms,
+    }
+
+
+def _phased_error_log(qid, adapter_name, user_id, error, ts, write_latency=0.0) -> TurnLog:
+    return TurnLog(
+        qid=qid, adapter=adapter_name, user_id=user_id, success=False, error=error,
+        recalled_count=0, recalled_turn_ids=[], recalled_texts=[], recall_metric={},
+        answer="", llm_latency_ms=0.0, llm_tokens_in=0, llm_tokens_out=0,
+        judge_score=0.0, judge_verdict="error", judge_positive_hits=[], judge_negative_hits=[],
+        timestamp=ts, write_latency_ms=write_latency, read_latency_ms=0.0,
+    )
+
+
+def score_t6(control_answer, control_expected, scenario_answer, expected_facts, nli) -> dict:
+    """T6 三态。一票否决(FAIL)只由 control 失败触发（硬召回判定）；
+    scenario 软判定只决定 pass↔WARN，永不产生 FAIL（缺口4，软判定隔离）。
+    """
+    if nli is None:
+        return {"t6_state": "SKIP_no_nli", "control_success": None,
+                "scenario_alert": None, "need_human": True}
+    ctrl_hyp = control_expected.get("hypothesis", "") if control_expected else ""
+    ctrl_res = nli.entail(control_answer, ctrl_hyp) if ctrl_hyp else None
+    control_success = bool(ctrl_res and ctrl_res.is_entailment)
+    scen_res = nli.entail(scenario_answer, expected_facts[0]["hypothesis"]) if expected_facts else None
+    scenario_alert = bool(scen_res and scen_res.is_entailment)
+    if not control_success:
+        state = "FAIL_swallowed"
+    elif scenario_alert:
+        state = "pass"
+    else:
+        state = "WARN_no_alert"
+    need_human = any(r is not None and r.low_confidence for r in (ctrl_res, scen_res))
+    return {"t6_state": state, "control_success": control_success,
+            "scenario_alert": scenario_alert, "need_human": need_human}
+
+
+def evaluate_phased(
+    adapter: MemoryAdapter, q: dict, llm_client: LLMClient, nli: NLIJudge | None = None,
+) -> TurnLog:
+    """T5/T6 双阶段编排：ingest → consolidate(trigger) → probe（缺口2/3）。"""
+    qid = q["qid"]
+    user_id = f"eval_{adapter.name}_{qid}"
+    ts = time.time()
+    setup_oracle_for_question(adapter, q)
+    try:
+        adapter.clear(user_id)
+    except Exception as e:
+        return _phased_error_log(qid, adapter.name, user_id, f"clear_failed: {e}", ts)
+
+    write_latency = 0.0
+    probe_queries: dict | None = None
+    try:
+        for ph in q["phases"]:
+            phase = ph.get("phase")
+            if phase == "ingest":
+                for t in ph.get("turns", []):
+                    ws = adapter.write(user_id, _build_turn(t))
+                    write_latency += ws.latency_ms
+            elif phase == "consolidate" and ph.get("trigger_consolidate"):
+                adapter.flush(user_id)        # flush gate
+                adapter.consolidate(user_id)
+            elif phase == "probe":
+                probe_queries = ph.get("queries", {})
+    except Exception as e:
+        return _phased_error_log(qid, adapter.name, user_id, f"phase_failed: {e}", ts, write_latency)
+
+    if not probe_queries:
+        return _phased_error_log(qid, adapter.name, user_id, "no_probe_phase", ts, write_latency)
+
+    ct = q.get("current_timestamp")
+    try:
+        if "control_query" in probe_queries:
+            return _run_t6(adapter, q, probe_queries, llm_client, nli, user_id, ts, write_latency, ct)
+        return _run_t5(adapter, q, probe_queries, llm_client, nli, user_id, ts, write_latency, ct)
+    except Exception as e:
+        return _phased_error_log(qid, adapter.name, user_id, f"probe_failed: {e}", ts, write_latency)
+    finally:
+        try:
+            adapter.clear(user_id)
+        except Exception:
+            pass
+
+
+def _run_t5(adapter, q, queries, llm_client, nli, user_id, ts, write_latency, ct) -> TurnLog:
+    """T5 单 query：read+answer → NLI 判内容未失真 + Attribution。"""
+    res = _read_and_answer(adapter, queries.get("query", ""), llm_client, user_id, ct)
+    jd = _judge_answer(res["answer"], q, nli)
+    attribution = attribution_f1(
+        res["recalled_turn_ids"], q.get("gold_memory_ids", []), q.get("fact_distribution", "single")
+    )
+    rmetric = recall_score(res["recalled_turn_ids"], q.get("gold_memory_ids", []))
+    return TurnLog(
+        qid=q["qid"], adapter=adapter.name, user_id=user_id, success=True, error=None,
+        recalled_count=res["n_mem"], recalled_turn_ids=res["recalled_turn_ids"],
+        recalled_texts=res["recalled_texts"], recall_metric=rmetric, answer=res["answer"],
+        llm_latency_ms=res["resp"].latency_ms, llm_tokens_in=res["resp"].cost_token_in,
+        llm_tokens_out=res["resp"].cost_token_out, judge_score=jd["score"],
+        judge_verdict=jd["verdict"], judge_positive_hits=jd["positive_hits"],
+        judge_negative_hits=jd["negative_hits"], timestamp=ts, write_latency_ms=write_latency,
+        read_latency_ms=res["read_latency"], attribution=attribution, nli_need_human=jd["need_human"],
+    )
+
+
+def _run_t6(adapter, q, queries, llm_client, nli, user_id, ts, write_latency, ct) -> TurnLog:
+    """T6 双 query 三态：control + scenario → pass/WARN/FAIL。"""
+    ctrl = _read_and_answer(adapter, queries["control_query"], llm_client, user_id, ct)
+    scen = _read_and_answer(adapter, queries["scenario_query"], llm_client, user_id, ct)
+    t6 = score_t6(
+        ctrl["answer"], queries.get("control_expected", {}), scen["answer"],
+        q.get("expected_facts", []), nli,
+    )
+    recalled = sorted(set(ctrl["recalled_turn_ids"]) | set(scen["recalled_turn_ids"]))
+    attribution = attribution_f1(
+        ctrl["recalled_turn_ids"], q.get("gold_memory_ids", []), q.get("fact_distribution", "single")
+    )
+    rmetric = recall_score(recalled, q.get("gold_memory_ids", []))
+    verdict = "correct" if t6["t6_state"] == "pass" else "wrong"
+    return TurnLog(
+        qid=q["qid"], adapter=adapter.name, user_id=user_id, success=True, error=None,
+        recalled_count=ctrl["n_mem"] + scen["n_mem"], recalled_turn_ids=recalled,
+        recalled_texts=ctrl["recalled_texts"] + scen["recalled_texts"], recall_metric=rmetric,
+        answer=f"[control] {ctrl['answer']}\n[scenario] {scen['answer']}",
+        llm_latency_ms=ctrl["resp"].latency_ms + scen["resp"].latency_ms,
+        llm_tokens_in=ctrl["resp"].cost_token_in + scen["resp"].cost_token_in,
+        llm_tokens_out=ctrl["resp"].cost_token_out + scen["resp"].cost_token_out,
+        judge_score=1.0 if t6["t6_state"] == "pass" else 0.0, judge_verdict=verdict,
+        judge_positive_hits=[], judge_negative_hits=[], timestamp=ts, write_latency_ms=write_latency,
+        read_latency_ms=ctrl["read_latency"] + scen["read_latency"],
+        attribution=attribution, t6_state=t6["t6_state"], nli_need_human=t6["need_human"],
     )
 
 
@@ -546,6 +735,13 @@ def main() -> int:
         "--list-llm-presets",
         action="store_true",
         help="列出所有可用 preset 后退出",
+    )
+    parser.add_argument(
+        "--judge-preset",
+        type=str,
+        default=None,
+        help="NLI judge preset（如 qwen-judge）。给了则新题型 expected_facts 走 NLI 蕴含判分；"
+        "不给则走 regex（旧 smoke 题）。judge 必须独立于被测 LLM。",
     )
     args = parser.parse_args()
 
@@ -613,6 +809,12 @@ def main() -> int:
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
     llm = ProxyLLMClient(preset)
 
+    # NLI judge（B 决策）：给了 --judge-preset 才启用，独立于被测 LLM
+    nli: NLIJudge | None = None
+    if args.judge_preset:
+        nli = NLIJudge.from_preset(args.judge_preset)
+        print(f"[harness] NLI judge: {args.judge_preset}", flush=True)
+
     run_dir = args.out / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
     out_file = run_dir / "results.jsonl"
@@ -652,13 +854,13 @@ def main() -> int:
                             ))
                         set_exporter(MultiExporter(exporters))
                         with init_run(trace_run_id, qid=qid, adapter=adapter_name, run_group=args.run_id):
-                            log = evaluate_one(traced_adapter, q, llm)
+                            log = evaluate_one(traced_adapter, q, llm, nli)
                         set_exporter(None)
                         # 通知 SSE backend 该 run 结束（让前端实时页收 complete 帧）
                         if args.trace_http:
                             _post_trace_complete(args.trace_http, trace_run_id, _trace_http_headers)
                     else:
-                        log = evaluate_one(traced_adapter, q, llm)
+                        log = evaluate_one(traced_adapter, q, llm, nli)
                 except Exception as e:
                     print(f"FATAL: {e}", flush=True)
                     traceback.print_exc()
