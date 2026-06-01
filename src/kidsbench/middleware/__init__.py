@@ -22,6 +22,7 @@ from .observe import StructuredLogger
 from .preflight import PreflightChecker, PreflightResult, check_cpu_avx2
 from .rate_limiter import GlobalRateLimiter, TokenBucketLimiter
 from .sidecar import SidecarStore
+from .noise_injector import inject
 from .virtual_clock import VirtualClock, get_clock
 
 __all__ = [
@@ -55,6 +56,7 @@ __all__ = [
     "WrappedFallback",
     "check_cpu_avx2",
     "get_clock",
+    "inject",
     "metrics_context",
     "set_metrics_context",
     "track_metrics",

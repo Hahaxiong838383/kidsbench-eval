@@ -6,6 +6,14 @@ from typing import Any, Literal
 
 Role = Literal["user", "assistant", "system"]
 
+# Schema 版本（frozen dataclass 演进追踪，长期多轮 runs 反序列化对比，grok #7）
+__schema_version__ = "2.0"
+
+# 可观测诊断字段类型（判分不依赖自报，仅白盒展示，默认 unknown 向后兼容）
+ProvenanceMode = Literal["native", "wrapped", "computed", "fallback", "unknown"]
+TextNature = Literal["verbatim", "extracted", "synthesized", "unknown"]
+ConsolidationPhase = Literal["write_time", "explicit", "unknown"]
+
 
 @dataclass(frozen=True)
 class Turn:
@@ -48,6 +56,12 @@ class Memory:
 
     timestamp: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+
+    # 可观测诊断（C/B 决策：判分不依赖这些自报字段，仅白盒展示/归因）
+    provenance_mode: ProvenanceMode = "unknown"
+    """native=原生精确1:1 / wrapped=sidecar注入 / computed=cosine辅路反查 / fallback=全量兜底 / unknown=升级前。"""
+    text_nature: TextNature = "unknown"
+    """verbatim=原文片段 / extracted=LLM抽取fact / synthesized=固化改写 / unknown=升级前。"""
 
 
 @dataclass(frozen=True)
@@ -103,6 +117,9 @@ class ConsolidateStats:
     consolidated_count: int = 0
     """本次固化合并/抽取的记忆数。"""
 
+    consolidation_phase: ConsolidationPhase = "unknown"
+    """grok：write_time=write时已固化(mem0) / explicit=独立consolidate(memoryos/graphiti) / unknown。解决 mem0 no-op 与他家 metrics 不可比。"""
+
     error: str | None = None
 
 
@@ -149,5 +166,8 @@ class ReadOpts:
 
     include_provenance: bool = True
     """是否强制返回 source_turn_ids（评测验证默认 True；性能场景可设 False 减少图回溯）。"""
+
+    current_timestamp: float | None = None
+    """E 决策：query 发生时刻，透传给支持时间的系统（T3 矛盾更新）。adapter 不支持则静默忽略，不 raise。"""
 
     extra: dict[str, Any] = field(default_factory=dict)

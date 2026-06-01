@@ -28,14 +28,19 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
 from harness.scorer import JudgeResult, recall_score, regex_judge  # noqa: E402
+from kidsbench.config import (  # noqa: E402
+    LLMPreset,
+    list_preset_names,
+    load_dotenv_local,
+    load_preset,
+)
 from kidsbench.contract import (  # noqa: E402
     AdapterError,
     MemoryAdapter,
     ReadOpts,
     Turn,
 )
-from kidsbench.config import LLMPreset, list_preset_names, load_dotenv_local, load_preset  # noqa: E402
-from kidsbench.middleware import LLMClient, LLMResponse  # noqa: E402
+from kidsbench.middleware import LLMClient, LLMResponse, inject  # noqa: E402
 from kidsbench.trace import (  # noqa: E402
     HttpExporter,
     JsonlExporter,
@@ -43,12 +48,12 @@ from kidsbench.trace import (  # noqa: E402
     init_run,
     install_llm_hook,
     set_exporter,
-    span as _trace_span,
-    span_attr as _trace_attr,
     uninstall_llm_hook,
-    wrap as _trace_wrap_adapter,
 )
-from kidsbench.trace.span import get_current_run_id, preview as _trace_preview  # noqa: E402
+from kidsbench.trace import span as _trace_span  # noqa: E402
+from kidsbench.trace import span_attr as _trace_attr  # noqa: E402
+from kidsbench.trace import wrap as _trace_wrap_adapter  # noqa: E402
+from kidsbench.trace.span import preview as _trace_preview  # noqa: E402
 
 # ============= LLM 客户端（preset-based OpenAI 兼容）=============
 
@@ -272,18 +277,30 @@ def load_questions(path: Path) -> list[dict]:
     return questions
 
 
-def turns_from_question(q: dict) -> list[Turn]:
-    return [
-        Turn(
-            turn_id=t["turn_id"],
-            session_id=t.get("session_id", "s1"),
-            role=t["role"],
-            text=t["text"],
-            timestamp=float(t.get("timestamp", time.time())),
-            metadata=t.get("metadata", {}),
+def _build_turn(t: dict) -> Turn:
+    """构造 Turn。T7 题 turn 用 clean_text + noise_params（缺口1）→ 注入脏文本后灌入。"""
+    if "noise_params" in t:
+        np = t["noise_params"]
+        text = inject(
+            t["clean_text"],
+            noise_type=np["type"],
+            intensity=float(np["intensity"]),
+            seed=int(np["seed"]),
         )
-        for t in q["turns"]
-    ]
+    else:
+        text = t["text"]
+    return Turn(
+        turn_id=t["turn_id"],
+        session_id=t.get("session_id", "s1"),
+        role=t["role"],
+        text=text,
+        timestamp=float(t.get("timestamp", time.time())),
+        metadata=t.get("metadata", {}),
+    )
+
+
+def turns_from_question(q: dict) -> list[Turn]:
+    return [_build_turn(t) for t in q["turns"]]
 
 
 # ============= 主流程 =============
@@ -490,7 +507,7 @@ def _post_trace_complete(event_tpl: str, run_id: str, headers: dict[str, str]) -
         )
         with urllib.request.urlopen(req, timeout=3.0):
             pass
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, Exception):  # noqa: BLE001
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, Exception):
         pass  # complete 通知失败不阻断评测
 
 
