@@ -72,3 +72,39 @@ def recall_score(recalled_turn_ids: list[str], gold_memory_ids: list[str]) -> di
         "missed": sorted(gold - recalled),
         "extra": sorted(recalled - gold),
     }
+
+
+def attribution_f1(
+    recalled_turn_ids: list[str],
+    gold_turn_ids: list[str],
+    fact_distribution: str = "single",
+) -> dict:
+    """Turn-level Attribution F1（C 决策核心，免打折惩罚全量兜底）。
+
+    - Precision 两口径都严格：全量兜底 T_pred 越大，precision 越低 → F1 暴跌。
+    - single：标准 Recall = |命中| / |gold|。
+    - distributed：同一事实多 turn 重复，Recall = 1.0 if 命中≥1 else 0.0（覆盖语义）。
+    - T_pred 为空（系统不支持 traceback）→ counted=False，该题 attribution 不计入。
+
+    返回新 dict（不可变）。
+    """
+    t_pred = set(recalled_turn_ids)
+    t_gold = set(gold_turn_ids)
+    if not t_pred or not t_gold:
+        return {"f1": None, "precision": None, "recall": None, "counted": False, "hit": 0}
+
+    hit = len(t_pred & t_gold)
+    precision = hit / len(t_pred)
+    if fact_distribution == "distributed":
+        recall = 1.0 if hit >= 1 else 0.0
+    else:
+        recall = hit / len(t_gold)
+    f1 = 2 * precision * recall / (precision + recall) if (precision + recall) > 0 else 0.0
+    return {
+        "f1": f1,
+        "precision": precision,
+        "recall": recall,
+        "counted": True,
+        "hit": hit,
+        "fact_distribution": fact_distribution,
+    }
