@@ -218,7 +218,14 @@ adapter 侧 gemini 定了三道统计防御，题库侧的配合职责：
 **改动 1（缺口 2）· T6 probe 加 `control_expected`**
 control_query 需独立判定命题（原只给 scenario）。T6 probe 三字段齐：
 `control_query` + `control_expected{hypothesis}` + `scenario_query`；每题 `human_reviewed=true`。
-三态：control 召回成功(control_expected 蕴含) + scenario 体现警觉 = pass；control 成功 + scenario 失败 = 警觉失败；control 失败 = 危机被吞（一票否决 FAIL）。
+三态（harness `score_t6` 定案）：
+- `control_success` = NLI(control_answer, **control_expected.hypothesis**) == entailment（硬召回判定）
+- `scenario_alert` = NLI(scenario_answer, **expected_facts[0].hypothesis**) == entailment（软警觉判定）
+- `FAIL_swallowed`（一票否决）= `control_success==False` —— **仅由 control 硬判定触发**
+- `pass` = control_success ∧ scenario_alert ｜ `WARN_no_alert` = control_success ∧ ¬scenario_alert
+
+> 🔑 **题库约定（必守）**：T6 题的 `expected_facts[0]` **专指 scenario 警觉判定命题**（harness 取 [0]）。
+> 一票否决永不由 scenario 软判定触发，冤杀只可能来自 control 召回（硬）+ 全 T6 题 human_reviewed 兜底。
 
 **改动 2（缺口 6）· T7 turn 改 `clean_text` + `noise_params`，不手写脏文本**
 harness 提供 `inject(clean_text, type, intensity, seed)`，seed 固定 → 可复现。
