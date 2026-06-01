@@ -51,6 +51,7 @@ from kidsbench.middleware import (  # noqa: E402
     NLIJudge,
     inject,
     judge_facts_nli,
+    verify_unified_injection,
 )
 from kidsbench.trace import (  # noqa: E402
     HttpExporter,
@@ -820,6 +821,20 @@ def main() -> int:
     if args.judge_preset:
         nli = NLIJudge.from_preset(args.judge_preset)
         print(f"[harness] NLI judge: {args.judge_preset}", flush=True)
+
+    # A 决策：运行时校验三家注入的 LLM/embedding 是否统一（公平性命根）
+    injection = verify_unified_injection(adapters, preset.model, preset.embedding.model)
+    for x in injection:
+        if x["status"] == "mismatch":
+            print(
+                f"[harness] ⚠️ {x['adapter']} 注入不一致："
+                f"llm={x['injected_llm']} embed={x['injected_embed']} "
+                f"(期望 {preset.model}/{preset.embedding.model}) → 应隔离 Model-Locked",
+                flush=True,
+            )
+    locked = [x["adapter"] for x in injection if x["status"] == "ok"]
+    if locked:
+        print(f"[harness] 统一锁定校验通过: {locked} 已锁 {preset.model}", flush=True)
 
     run_dir = args.out / args.run_id
     run_dir.mkdir(parents=True, exist_ok=True)
