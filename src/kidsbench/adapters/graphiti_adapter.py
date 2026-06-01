@@ -65,6 +65,9 @@ class GraphitiAdapter(MemoryAdapter):
         self._backend = backend
         self._uri = uri
         self._config = dict(config or {})
+        # A 决策：harness 在 config 传入注入的 model（model 实际在 client_factory 内用，adapter 自报供校验）
+        self._injected_llm = str(self._config.get("injected_llm_model", ""))
+        self._injected_embed = str(self._config.get("injected_embed_model", ""))
         self._sidecar = sidecar or SidecarStore()
         self._embedding_service = embedding_service
         self._rate_limiter = rate_limiter
@@ -321,6 +324,10 @@ class GraphitiAdapter(MemoryAdapter):
             Dependency("OPENAI_API_KEY", "env", required=True, check_hint="env OPENAI_API_KEY"),
         ]
         return deps
+
+    def get_injected_providers(self) -> dict[str, str]:
+        """A 决策：自报实际注入的 LLM/embedding（harness 经 config 传入），供锁定校验。"""
+        return {"internal_llm": self._injected_llm, "internal_embed": self._injected_embed}
 
     def get_stats(self, user_id: str) -> dict[str, Any]:
         stats = {

@@ -154,6 +154,11 @@ class Dependency:
     - 某 adapter 硬编码 GPT-4 拒绝替换 → swap_supported=False
     """
 
+    config_key: str = ""
+    """注入路径声明（grok A 决策）。例 'llm.model' / 'llm_model'。preflight 校验注入是否真生效用。"""
+    actual_model: str | None = None
+    """构造时探测到的真实注入 model；None=未探测。供 Lane 锁定运行时断言。"""
+
 
 @dataclass(frozen=True)
 class ReadOpts:

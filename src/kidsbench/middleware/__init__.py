@@ -21,7 +21,12 @@ from .metrics import METRICS, MetricsCollector, metrics_context, set_metrics_con
 from .nli_judge import NLIJudge, NLIResult, judge_facts_nli
 from .noise_injector import inject
 from .observe import StructuredLogger
-from .preflight import PreflightChecker, PreflightResult, check_cpu_avx2
+from .preflight import (
+    PreflightChecker,
+    PreflightResult,
+    check_cpu_avx2,
+    verify_unified_injection,
+)
 from .rate_limiter import GlobalRateLimiter, TokenBucketLimiter
 from .sidecar import SidecarStore
 from .virtual_clock import VirtualClock, get_clock
@@ -64,5 +69,6 @@ __all__ = [
     "metrics_context",
     "set_metrics_context",
     "track_metrics",
+    "verify_unified_injection",
     "wrap_errors",
 ]

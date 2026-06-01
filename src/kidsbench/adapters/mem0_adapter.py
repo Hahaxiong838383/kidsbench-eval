@@ -349,6 +349,10 @@ class Mem0Adapter(MemoryAdapter):
             ),
         ]
 
+    def get_injected_providers(self) -> dict[str, str]:
+        """A 决策：自报实际注入的 LLM/embedding，供 harness 校验统一锁定。"""
+        return {"internal_llm": self._llm_model_name, "internal_embed": self._embed_model_name}
+
     def get_stats(self, user_id: str) -> dict[str, Any]:
         return {
             "sidecar": self._sidecar.stats(user_id),

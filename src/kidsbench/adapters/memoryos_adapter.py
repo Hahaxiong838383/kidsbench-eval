@@ -182,6 +182,9 @@ class MemoryOSAdapter(MemoryAdapter):
         auto_consolidate: bool = False,
     ) -> None:
         self._config = config or {}
+        # A 决策：记录注入的 LLM/embedding（get_injected_providers 自报，供锁定校验）
+        self._injected_llm = str(self._config.get("llm_model", ""))
+        self._injected_embed = str(self._config.get("embedding_model_name", ""))
         self._sidecar = sidecar or SidecarStore(backend="memory")
         self._embed = embedding_service or _HashEmbeddingService()
         self._rate_limiter = rate_limiter or GlobalRateLimiter()
@@ -377,11 +380,25 @@ class MemoryOSAdapter(MemoryAdapter):
                 "openai gpt-4 or gpt-3.5",
                 "internal_llm",
                 required=True,
-                swap_supported=False,
+                # 实际从 config['llm_model'] 注入（诚实化，grok 纠正 swap=False 声明矛盾）
+                swap_supported=True,
+                config_key="llm_model",
+                actual_model=self._injected_llm or None,
             ),
-            Dependency("ada-002", "internal_embed", required=True, swap_supported=False),
+            Dependency(
+                "ada-002",
+                "internal_embed",
+                required=True,
+                swap_supported=True,
+                config_key="embedding_model_name",
+                actual_model=self._injected_embed or None,
+            ),
             Dependency("OPENAI_API_KEY", "env", required=True),
         ]
+
+    def get_injected_providers(self) -> dict[str, str]:
+        """A 决策：自报实际注入的 LLM/embedding，供 harness 校验统一锁定。"""
+        return {"internal_llm": self._injected_llm, "internal_embed": self._injected_embed}
 
     def get_stats(self, user_id: str) -> dict[str, Any]:
         self._require_user(user_id)

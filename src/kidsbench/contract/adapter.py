@@ -151,5 +151,14 @@ class MemoryAdapter(ABC):
         """默认实现：直接返回 True，子类按需实现具体检查。"""
         return True
 
+    def get_injected_providers(self) -> dict[str, str]:
+        """返回本 adapter 实际使用的内部 LLM/embedding（A 决策：运行时锁定校验）。
+
+        例：{'internal_llm': 'gemini-3-flash', 'internal_embed': 'bge-small-zh-v1.5'}。
+        默认 {} 表示未声明。子类应覆写，自报实际注入的 model，
+        供 harness 验证三家是否真用了统一 client（把 swap_supported 从声明变可校验）。
+        """
+        return {}
+
     def __repr__(self) -> str:
         return f"<{self.__class__.__name__}({self.name})>"

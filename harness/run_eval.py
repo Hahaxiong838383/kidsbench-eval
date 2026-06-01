@@ -229,7 +229,13 @@ def make_graphiti_adapter(preset: LLMPreset) -> MemoryAdapter | None:
             uri="redis://127.0.0.1:16379",
             # skip_avx2_check: FalkorDB 远程跑在 QNAP x86（有 AVX2），
             # 本机 macOS arm64 ARM 不需检测（gemini Wave1 Graphiti.2 "AVX2 张冠李戴" finding）
-            config={"client_factory": factory, "skip_avx2_check": True},
+            config={
+                "client_factory": factory,
+                "skip_avx2_check": True,
+                # A 决策：传入注入的 model 供 get_injected_providers 自报
+                "injected_llm_model": preset.model,
+                "injected_embed_model": preset.embedding.model,
+            },
         )
     except Exception as e:
         print(f"[harness] graphiti adapter 初始化失败: {e}", flush=True)

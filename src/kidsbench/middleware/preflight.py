@@ -108,3 +108,29 @@ def _run_shell_check(command: str) -> tuple[bool, str]:
         return True, proc.stdout.strip() or "ok"
     stderr = proc.stderr.strip() or proc.stdout.strip() or f"exit={proc.returncode}"
     return False, stderr
+
+
+def verify_unified_injection(
+    adapters: dict, expected_llm: str, expected_embed: str
+) -> list[dict]:
+    """A 决策：校验各 adapter 实际注入的 LLM/embedding 是否统一（公平性命根）。
+
+    各 adapter 经 get_injected_providers() 自报实际 model，与 harness 注入的统一
+    model 对比。不一致 → mismatch（harness 应告警或隔离为 Model-Locked 组）；
+    baseline / 未实现自报 → unknown（不参与锁定校验）。返回新 list，不改入参。
+    """
+    results: list[dict] = []
+    for name, adapter in adapters.items():
+        providers = adapter.get_injected_providers()
+        if not providers:
+            results.append(
+                {"adapter": name, "status": "unknown", "injected_llm": "", "injected_embed": ""}
+            )
+            continue
+        llm = providers.get("internal_llm", "")
+        embed = providers.get("internal_embed", "")
+        status = "ok" if (llm == expected_llm and embed == expected_embed) else "mismatch"
+        results.append(
+            {"adapter": name, "status": status, "injected_llm": llm, "injected_embed": embed}
+        )
+    return results
