@@ -253,3 +253,39 @@ gold / expected_facts 仍按**干净语义**标注（脏的是输入，判的是
 - 按 §2 配额出 124 题：T1×18 / T2×15 / T3×18 / T4×18 / T5×20 / T6×20 / T7×15
 - 每题带完整元数据（task_type/cognitive_type/difficulty_class/scene/source）供 LMM
 - T6 全 `human_reviewed=true`；T2 全 `fact_distribution=distributed`；探索期 `source` 全 `synthetic`
+
+---
+
+## 8. v2.2 增补：scene_context 当下感知层（补回 W3 模块 A）
+
+> 状态：**🔒 SCHEMA RE-FROZEN v2.2（2026-06-01）**。补回冻结前漏掉的 W3「场景上下文」层。
+> 经题库↔harness 对账（harness 已实现 build_prompt 纳入，commit 3e4c37ed，245 passed 向后兼容）。
+
+### 8.1 为什么加
+W3 把题目拆三层：`对话历史`(模块B记忆→turns) + `用户输入`(→query) + **`场景上下文`(模块A当下感知)**。
+v2.1 漏了第三层。场景上下文 = AI 此刻感知到的环境（摄像头/麦克风/会话/身份/时间/累计），
+**独立于"要记住的历史"**。
+
+### 8.2 字段定义
+```json
+"scene_context": {"用户":"13岁/初一", "时间":"周日 21:00", "摄像头":"表情低落、语速慢"}
+```
+- 类型 **`dict[str, str]`**（扁平中文标签，key=维度、value=当前状态）
+- **按需填、省略空维度、整字段可缺省**（缺省题向后兼容照跑）
+- harness 渲染成 prompt「当前场景」段（放最前：当下感知 → 相关记忆 → 用户问题）
+
+### 8.3 🔴 红线（harness 定，比立场更要命，出题死守）
+**scene_context 严禁包含题目要测的记忆事实 / gold 答案。**
+否则 NoMemory baseline 不靠记忆、直接从 scene_context 读到答案 → recall=0 却 verdict=correct
+→ **区分度崩塌**。只放"环境感知"，绝不放"该被记住的历史"。
+> 特别注意：T2 测昵称，scene_context 的「用户」**只放年龄/年级、不放昵称**（昵称是 gold）。
+
+### 8.4 三条边界（harness 确认成立）
+1. scene_context 只进 prompt，**不进 turns、不调 adapter.write**（FullHistory 只存 turns，绝不会当历史）
+2. **不进记忆判分主路径**（Attribution F1 / NLI 不碰它，T1-T7 判分结果不变）
+3. E1 体验评测时才按 CTX 维度纳入 0-3 锚点判分
+
+### 8.5 落地状态
+- [x] 27 题回填 scene_context（jsonl + 飞书），**红线自动扫描 0 泄露**
+- [x] 按 task_type 轻重：召回类轻(身份+时间+模式) / T2 设备状态 / T6 带摄像头情绪 / T7 带麦克风状态
+- [x] harness build_prompt 已纳入（向后兼容，缺省照跑）
