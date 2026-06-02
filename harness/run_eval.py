@@ -51,6 +51,7 @@ from kidsbench.middleware import (  # noqa: E402
     NLIJudge,
     inject,
     judge_facts_nli,
+    retry_call,
     verify_unified_injection,
 )
 from kidsbench.trace import (  # noqa: E402
@@ -123,14 +124,17 @@ class ProxyLLMClient(LLMClient):
         if self._reasoning_effort:
             # gemini-3.5-flash 等 thinking 模型必须显式 minimal 防 reasoning_tokens 爆 message
             body["reasoning_effort"] = self._reasoning_effort
-        with httpx.Client(timeout=120) as client:
-            resp = client.post(
-                f"{self._base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json=body,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        def _post() -> dict[str, Any]:
+            with httpx.Client(timeout=120) as client:
+                resp = client.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=body,
+                )
+                resp.raise_for_status()
+                return resp.json()
+
+        data = retry_call(_post, max_attempts=3, base_delay=1.0)  # 网络抖动/5xx 重试
         latency_ms = (time.perf_counter() - t0) * 1000
         choices = data.get("choices", [])
         if not choices:
@@ -368,6 +372,35 @@ def setup_oracle_for_question(adapter: MemoryAdapter, q: dict) -> None:
         return list(gold)
 
     adapter.set_gold_lookup(lookup)
+
+
+def _load_resume_state(out_file: Path) -> tuple[set, dict]:
+    """断点续跑：从已有 results.jsonl 重建 done 集合 + summary 计数。"""
+    done: set[tuple[str, str]] = set()
+    summary: dict[str, dict] = {}
+    for line in out_file.open(encoding="utf-8"):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        done.add((r.get("adapter", ""), r.get("qid", "")))
+        s = summary.setdefault(
+            r.get("adapter", ""),
+            {"correct": 0, "wrong": 0, "evasive": 0, "error": 0, "total": 0},
+        )
+        s["total"] += 1
+        if not r.get("success"):
+            s["error"] += 1
+        elif r.get("judge_verdict") == "correct":
+            s["correct"] += 1
+        elif r.get("judge_verdict") == "wrong":
+            s["wrong"] += 1
+        else:
+            s["evasive"] += 1
+    return done, summary
 
 
 def render_scene_context(scene_context: dict | None) -> str:
@@ -769,6 +802,11 @@ def main() -> int:
         help="NLI judge preset（如 qwen-judge）。给了则新题型 expected_facts 走 NLI 蕴含判分；"
         "不给则走 regex（旧 smoke 题）。judge 必须独立于被测 LLM。",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="断点续跑：读已有 results.jsonl，跳过已完成的 (adapter,qid)，追加写（防中断从头跑）。",
+    )
     args = parser.parse_args()
 
     # 加载 .env.local（含 KIDSBENCH_*_API_KEY 等 secret，已 chmod 600 + .gitignored）
@@ -865,15 +903,25 @@ def main() -> int:
         install_llm_hook()
 
     summary: dict[str, dict] = {}
+    done: set[tuple[str, str]] = set()
+    file_mode = "w"
+    if args.resume and out_file.exists():
+        done, summary = _load_resume_state(out_file)
+        file_mode = "a"
+        print(f"[harness] resume: 已完成 {len(done)} 个 (adapter,qid)，续跑剩余", flush=True)
 
-    with out_file.open("w", encoding="utf-8") as fout:
+    with out_file.open(file_mode, encoding="utf-8") as fout:
         for adapter_name, adapter in adapters.items():
             print(f"\n=== [{adapter_name}] ===", flush=True)
-            summary[adapter_name] = {"correct": 0, "wrong": 0, "evasive": 0, "error": 0, "total": 0}
+            summary.setdefault(
+                adapter_name, {"correct": 0, "wrong": 0, "evasive": 0, "error": 0, "total": 0}
+            )
             # B1: trace 启用时包 adapter，方法调用自动发 span
             traced_adapter = _trace_wrap_adapter(adapter) if args.trace else adapter
             for q in questions:
                 qid = q["qid"]
+                if (adapter_name, qid) in done:
+                    continue  # 断点续跑：已完成跳过
                 print(f"  {qid} ({q.get('difficulty_class','?')}, {q.get('cognitive_type','?')})...",
                       flush=True, end=" ")
                 try:

@@ -28,6 +28,7 @@ from .preflight import (
     verify_unified_injection,
 )
 from .rate_limiter import GlobalRateLimiter, TokenBucketLimiter
+from .retry import retry_call, with_retry
 from .sidecar import SidecarStore
 from .virtual_clock import VirtualClock, get_clock
 
@@ -67,8 +68,10 @@ __all__ = [
     "inject",
     "judge_facts_nli",
     "metrics_context",
+    "retry_call",
     "set_metrics_context",
     "track_metrics",
     "verify_unified_injection",
+    "with_retry",
     "wrap_errors",
 ]

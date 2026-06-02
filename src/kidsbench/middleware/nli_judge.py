@@ -90,14 +90,19 @@ class NLIJudge:
             "response_format": {"type": "json_object"},
             "enable_thinking": False,
         }
-        with httpx.Client(timeout=self._timeout) as client:
-            resp = client.post(
-                f"{self._base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {self._api_key}"},
-                json=body,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        from .retry import retry_call
+
+        def _post() -> dict:
+            with httpx.Client(timeout=self._timeout) as client:
+                resp = client.post(
+                    f"{self._base_url}/chat/completions",
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    json=body,
+                )
+                resp.raise_for_status()
+                return resp.json()
+
+        data = retry_call(_post, max_attempts=3, base_delay=1.0)  # 网络抖动/5xx 重试
         choices = data.get("choices", [])
         if not choices:
             raise RuntimeError(f"NLI judge 无 choices: {data}")
