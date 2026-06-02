@@ -22,9 +22,10 @@ def _is_retryable_error(exc: Exception) -> bool:
     )
     if isinstance(exc, retryable_types):
         return True
-    # LLM/NLI 网关偶发 5xx（502/503/504）瞬态可重试；4xx 是请求问题不重试
+    # 429 限流 + 5xx 网关（502/503/504）瞬态可重试；其余 4xx 是请求问题不重试
     if isinstance(exc, httpx.HTTPStatusError):
-        return exc.response.status_code >= 500
+        code = exc.response.status_code
+        return code == 429 or code >= 500
     return False
 
 

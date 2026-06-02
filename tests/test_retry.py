@@ -25,6 +25,12 @@ def test_5xx_retryable():
     assert _is_retryable_error(err) is True
 
 
+def test_429_retryable():
+    """限流 429 该退避重试（77 题实测 2 题因 429 丢题，cc 验收抓到）。"""
+    err = httpx.HTTPStatusError("x", request=_REQ, response=httpx.Response(429, request=_REQ))
+    assert _is_retryable_error(err) is True
+
+
 def test_4xx_not_retryable():
     err = httpx.HTTPStatusError("x", request=_REQ, response=httpx.Response(404, request=_REQ))
     assert _is_retryable_error(err) is False
