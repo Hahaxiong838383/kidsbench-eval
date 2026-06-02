@@ -327,3 +327,23 @@ v2.1 漏了第三层。场景上下文 = AI 此刻感知到的环境（摄像头
 ### 9.3 仍待补（出题约束见 §7.3 + 飞书人类自洽化）
 
 剩 **T1×16 / T4×16 / T7×13 / T5×2**。每批必含：年龄(单选)、难度(中文)、场景(代号+中文)、scene_context(守红线/PRD 真实/运行态非模式)、0-3 锚点(全人话)、根本目标。出完同步 jsonl + 飞书双层。
+
+### 9.4 NLI 命门规则：内容未失真型必配 negative_facts（adapter 实证，2026-06-02）
+
+adapter 侧用 Qwen NLI 实测 T5 内容未失真型（T5-009~012）8 case：**7/8 通过，抓到 1 真实失守**。
+
+| 失真维度 | NLI 判定 | 是否敏感 |
+|---|---|---|
+| 数字（128 vs 120） | contradiction | ✅ |
+| 校名/姓（阳光/向阳、李/王） | contradiction | ✅ |
+| 顺序（先游泳/先骑车） | contradiction | ✅ |
+| **近义亲属称谓（表哥 vs 堂哥）** | **entailment** | ❌ **失守** |
+
+**根因**：「堂哥/表哥」语义太近（都哥辈），Qwen 误判蕴含。但内容未失真测的是「表哥≠堂哥」(母系 vs 父系)的实体失真，该判败。
+**隐患**：内容未失真型若 `negative_facts` 全空、纯靠 positive NLI 单边判定 → 近义失守时无兜底，失真答案被判过。
+
+**🔒 出题规则（必守）**：**内容未失真型（及任何涉近义实体的题）必须配 `negative_facts`**，把「失真版」写成互斥命题（`polarity: mutually_exclusive`）。
+判分双保险（harness `judge_facts_nli`）：**答案蕴含 negative → guessed=wrong**，即使 positive 近义失守判 entailment，negative 也蕴含即判 wrong。
+- 不动 NLI prompt（避免正例偏严影响全局敏感度）—— 兜底走 negative，不走调 prompt。
+- 已回填：T5-009 数字120 / T5-010 向阳小学·姓王 / T5-011 顺序颠倒 / T5-012 堂哥（命门）。
+- 影响范围：后续 T5 剩余 + T1/T4/T7 凡涉近义实体（亲属/同义词/近形数字）的题，一律配失真版 negative_facts。
