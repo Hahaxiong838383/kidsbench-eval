@@ -13,6 +13,7 @@
 """
 from .fullhistory import FullHistoryAdapter
 from .graphiti_adapter import GraphitiAdapter
+from .hindsight_adapter import HindsightAdapter
 from .mem0_adapter import Mem0Adapter
 from .memoryos_adapter import MemoryOSAdapter
 from .nomemory import NoMemoryAdapter
@@ -27,4 +28,6 @@ __all__ = [
     "Mem0Adapter",
     "MemoryOSAdapter",
     "GraphitiAdapter",
+    # Wave 2（hindsight：recall/reflect 双模式范式旋钮）
+    "HindsightAdapter",
 ]

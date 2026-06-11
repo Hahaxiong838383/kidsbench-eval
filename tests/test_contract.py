@@ -13,6 +13,7 @@ import pytest
 from kidsbench.adapters import (
     FullHistoryAdapter,
     GraphitiAdapter,
+    HindsightAdapter,
     Mem0Adapter,
     MemoryOSAdapter,
     NoMemoryAdapter,
@@ -223,6 +224,68 @@ def make_graphiti() -> GraphitiAdapter:
     )
 
 
+class _HindsightContractClient:
+    """契约测试用 Mock Hindsight client（镜像 hindsight_client.Hindsight 0.8.1 签名）。
+
+    行为对齐 Phase 0 实测（docs/HINDSIGHT_VERIFIED_FACTS.md）：retain 同步、
+    metadata 透传、delete_bank 级联、reflect 纯读返回 text+based_on+usage。
+    """
+
+    def __init__(self) -> None:
+        self._banks: dict[str, list[dict]] = {}
+        self._counter = 0
+
+    def retain(self, bank_id: str, content: str, timestamp=None, metadata=None, **kw):
+        self._counter += 1
+        self._banks.setdefault(bank_id, []).append(
+            {
+                "id": f"hs_{self._counter:03d}",
+                "text": content,
+                "type": "world",
+                "metadata": dict(metadata or {}),
+                "document_id": f"doc_{self._counter:03d}",
+                "chunk_id": f"{bank_id}_{self._counter:03d}_0",
+                "source_fact_ids": None,
+            }
+        )
+        return {
+            "success": True,
+            "items_count": 1,
+            "usage": {"input_tokens": 80, "output_tokens": 20, "total_tokens": 100},
+        }
+
+    def recall(self, bank_id: str, query: str, query_timestamp=None, **kw):
+        return {"results": list(self._banks.get(bank_id, []))}
+
+    def reflect(self, bank_id: str, query: str, include_facts: bool = False, **kw):
+        facts = list(self._banks.get(bank_id, [])) if include_facts else []
+        return {
+            "text": "基于现有记忆的合成分析" if self._banks.get(bank_id) else "",
+            "based_on": [
+                {"id": f["id"], "text": f["text"], "type": f["type"]} for f in facts
+            ],
+            "usage": {"input_tokens": 200, "output_tokens": 60, "total_tokens": 260},
+        }
+
+    def delete_bank(self, bank_id: str):
+        self._banks.pop(bank_id, None)
+        return {"bank_deleted": True}
+
+    def trigger_consolidation(self, bank_id: str):
+        return {"consolidated_count": 0, "usage": {"total_tokens": 0}}
+
+    def close(self) -> None:
+        return None
+
+
+def make_hindsight_recall() -> HindsightAdapter:
+    return HindsightAdapter(mode="recall", client=_HindsightContractClient())
+
+
+def make_hindsight_reflect() -> HindsightAdapter:
+    return HindsightAdapter(mode="reflect", client=_HindsightContractClient())
+
+
 ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "nomemory": make_nomemory,
     "fullhistory": make_fullhistory,
@@ -230,6 +293,8 @@ ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "mem0": make_mem0,
     "memoryos": make_memoryos,
     "graphiti": make_graphiti,
+    "hindsight-recall": make_hindsight_recall,
+    "hindsight-reflect": make_hindsight_reflect,
 }
 
 

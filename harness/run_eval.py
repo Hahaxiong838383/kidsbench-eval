@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 import traceback
@@ -288,6 +289,69 @@ def make_mem0_adapter(preset: LLMPreset) -> MemoryAdapter | None:
         return None
 
 
+# Hindsight embedded server 单例（起一次 100s+，全 run 复用；进程退出自动停）
+_HINDSIGHT_SERVER = None
+
+
+def _ensure_hindsight_server(preset: LLMPreset):
+    """起 embedded HindsightServer（标准评测 env 五件套，见 HINDSIGHT_VERIFIED_FACTS.md）。"""
+    global _HINDSIGHT_SERVER
+    if _HINDSIGHT_SERVER is not None:
+        return _HINDSIGHT_SERVER
+    # env 必须在 server 创建前设置（config 启动时读取）
+    os.environ.setdefault("HINDSIGHT_API_EMBEDDINGS_PROVIDER", "local")
+    os.environ.setdefault("HINDSIGHT_API_EMBEDDINGS_LOCAL_MODEL", preset.embedding.model)
+    os.environ.setdefault("HINDSIGHT_API_RERANKER_PROVIDER", "local")
+    os.environ.setdefault("HINDSIGHT_API_RERANKER_LOCAL_MODEL", "BAAI/bge-reranker-v2-m3")
+    # 关自动 consolidation：评测期间后台写入不受控会破坏可比性 + 产英文 observation（Phase 1.5 实测）
+    os.environ.setdefault("HINDSIGHT_API_ENABLE_AUTO_CONSOLIDATION", "false")
+    # reflect agent 多轮 tool call 撞 gemini-3 thought_signature（proxy 不透传，HTTP 400×6）
+    # → reflect stage 族内降级 gemini-2.5-flash（同 proxy，无此强制）。retain 仍统一 gemini-3。
+    # capability 如实标注；usage 照常计量（Phase 3 实测 0 错误 + 正确中文合成）
+    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_PROVIDER", "openai")
+    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_MODEL", "gemini-2.5-flash")
+    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_BASE_URL", preset.base_url)
+    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_API_KEY", preset.get_api_key())
+
+    from hindsight import HindsightServer
+
+    server = HindsightServer(
+        db_url="pg0",
+        llm_provider="openai",
+        llm_base_url=preset.base_url,
+        llm_api_key=preset.get_api_key(),
+        llm_model=preset.model,
+    )
+    server.start(timeout=900)
+    _HINDSIGHT_SERVER = server
+    print(f"[harness] hindsight embedded server up: {server.url}", flush=True)
+    return server
+
+
+def make_hindsight_adapters(preset: LLMPreset) -> dict[str, MemoryAdapter] | None:
+    """recall/reflect 双模式（范式旋钮）。需 .venv-hindsight；返回 None 表示不可用。"""
+    try:
+        import hindsight_client  # noqa: F401
+
+        from kidsbench.adapters.hindsight_adapter import HindsightAdapter
+    except (ImportError, ModuleNotFoundError):
+        return None
+    try:
+        server = _ensure_hindsight_server(preset)
+    except Exception as e:
+        print(f"[harness] hindsight server 启动失败: {e}", file=sys.stderr)
+        return None
+    config = {
+        "base_url": server.url,
+        "injected_llm_model": preset.model,
+        "injected_embed_model": preset.embedding.model,
+    }
+    return {
+        "hindsight-recall": HindsightAdapter(mode="recall", config=config),
+        "hindsight-reflect": HindsightAdapter(mode="reflect", config=config),
+    }
+
+
 def load_questions(path: Path) -> list[dict]:
     questions = []
     with path.open("r", encoding="utf-8") as f:
@@ -358,6 +422,9 @@ class TurnLog:
     attribution: dict | None = None
     t6_state: str | None = None
     nli_need_human: bool = False
+    # 范式成本计量（早/晚绑定 Pareto 对照；adapter 自报 usage，默认 0 向后兼容）
+    adapter_write_tokens: int = 0
+    adapter_read_tokens: int = 0
 
 
 def setup_oracle_for_question(adapter: MemoryAdapter, q: dict) -> None:
@@ -470,10 +537,12 @@ def evaluate_one(
     # 3. 灌历史
     turns = turns_from_question(q)
     write_latency = 0.0
+    write_tokens = 0
     try:
         for turn in turns:
             ws = adapter.write(user_id, turn)
             write_latency += ws.latency_ms
+            write_tokens += ws.cost_token
     except (AdapterError, Exception) as e:
         return TurnLog(
             qid=qid, adapter=adapter.name, user_id=user_id,
@@ -504,6 +573,7 @@ def evaluate_one(
         })
         recalled_texts = [m.text for m in rr.memories]
         read_latency = rr.latency_ms
+        read_tokens = rr.cost_token
     except (AdapterError, Exception) as e:
         return TurnLog(
             qid=qid, adapter=adapter.name, user_id=user_id,
@@ -568,6 +638,8 @@ def evaluate_one(
         read_latency_ms=read_latency,
         attribution=attribution,
         nli_need_human=jd["need_human"],
+        adapter_write_tokens=write_tokens,
+        adapter_read_tokens=read_tokens,
     )
 
 
@@ -766,6 +838,7 @@ def main() -> int:
     parser.add_argument("--include-mem0", action="store_true", help="是否跑 Mem0Adapter（需 .venv-mem0）")
     parser.add_argument("--include-memoryos", action="store_true", help="是否跑 MemoryOSAdapter（需 .venv-memoryos）")
     parser.add_argument("--include-graphiti", action="store_true", help="是否跑 GraphitiAdapter（需 .venv-graphiti + 隧道 16379→QNAP）")
+    parser.add_argument("--include-hindsight", action="store_true", help="是否跑 Hindsight recall/reflect 双模式（需 .venv-hindsight，embedded pg0）")
     parser.add_argument("--run-id", type=str, default=f"run_{int(time.time())}")
     parser.add_argument(
         "--trace",
@@ -869,6 +942,12 @@ def main() -> int:
             print("[harness] graphiti 不可用（未装 graphiti-core 或隧道未起），跳过", flush=True)
         else:
             adapters["graphiti"] = graphiti
+    if args.include_hindsight:
+        hindsight_pair = make_hindsight_adapters(preset)
+        if hindsight_pair is None:
+            print("[harness] hindsight 不可用（未装 hindsight-client 或 server 起不来），跳过", flush=True)
+        else:
+            adapters.update(hindsight_pair)
 
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
     llm = ProxyLLMClient(preset)

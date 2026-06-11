@@ -157,7 +157,45 @@ _GRAPHITI_METHODS = [
 
 
 # ============================================================
-# 3 个 Adapter 完整元信息
+# Hindsight Adapter 方法清单（10 个，recall/reflect 双模式）
+# ============================================================
+
+_HS_FILE = "src/kidsbench/adapters/hindsight_adapter.py"
+
+_HINDSIGHT_METHODS = [
+    _method("write", "abstract", _HS_FILE, 165,
+        "Turn → client.retain(bank_id, content, timestamp, metadata={turn_id,...}) → "
+        "Hindsight 内部 LLM 同步抽取 facts/entities/relationships 入 pg0。"
+        "sidecar 写前查重（retain 非幂等，防 retry 重复记忆）；usage.total_tokens 如实计入 cost_token"),
+    _method("read", "abstract", _HS_FILE, 201,
+        "范式旋钮分叉：mode=recall → client.recall（向量+BM25+图+时序四路 → RRF → bge-reranker 重排，"
+        "不调 LLM，read 成本 0）；mode=reflect → client.reflect（LLM agent 多轮合成 mental model，"
+        "synthesis 作首条 Memory 标 synthesized，cost 计 usage）。溯源：recall 走 metadata.turn_id（wrapped），"
+        "reflect 走 embedding 辅路（computed）"),
+    _method("clear", "abstract", _HS_FILE, 307,
+        "client.delete_bank(bank_id) → 六步级联物理删（documents→memory_units→invalidated→entities→banks→"
+        "DROP per-bank HNSW 索引），实测交叉删除不互伤；同时清 sidecar"),
+    _method("flush", "abstract", _HS_FILE, 317,
+        "retain 默认同步（返回前抽取完成，实测写完立即可召回 20/20）→ flush 轻量 no-op"),
+    _method("consolidate", "overridable", _HS_FILE, 324,
+        "mode=recall → 禁 LLM（no-op，防「廉价检索点」成本归属混淆）；"
+        "mode=reflect → POST /v1/default/banks/{bank}/consolidate 显式触发（auto-consolidation 已关）"),
+    _method("get_dependencies", "abstract", _HS_FILE, 358,
+        "返回 [hindsight-server(embedded pg0), 注入 LLM(llm_base_url), 统一 embedding, bge-reranker-v2-m3] preflight"),
+    _method("get_stats", "abstract", _HS_FILE, 397,
+        "返回 {mode, sidecar 计数, metrics 快照}"),
+    _method("get_capability_profile", "abstract", _HS_FILE, 404,
+        "按 mode 分别申报：recall=turn_id wrapped / Lane C compatible；"
+        "reflect=turn_id computed / retrieval 用 LLM / Lane C incompatible"),
+    _method("batch_write", "overridable", _HS_FILE, 77,
+        "默认循环 write（保 1:1 metadata 溯源；retain_batch 会牺牲 per-turn metadata 粒度）"),
+    _method("close", "overridable", _HS_FILE, 453,
+        "显式释放 client 连接（防 aiohttp unclosed session）"),
+]
+
+
+# ============================================================
+# 4 个 Adapter 完整元信息
 # ============================================================
 
 ADAPTERS: dict = {
@@ -232,6 +270,33 @@ ADAPTERS: dict = {
         "venv": ".venv-graphiti",
         "known_issues": [
             "async/sync bridge 跨调用 event loop 必须保持单一（已修，见 graphiti_compat.py）",
+        ],
+    },
+    "hindsight": {
+        "name": "Hindsight（recall/reflect 双模式）",
+        "sdk": {
+            "package": "hindsight-all",
+            "version": "0.8.1",
+            "github": "https://github.com/vectorize-io/hindsight",
+            "install": "pip install hindsight-all==0.8.1",
+        },
+        "entry_class": {
+            "name": "HindsightAdapter",
+            "file": _HS_FILE,
+            "line": 77,
+        },
+        "methods": _HINDSIGHT_METHODS,
+        "middleware_deps": [
+            "SidecarStore（写前查重幂等 + turn_id 兜底）",
+            "EmbeddingService（reflect 辅路 source_embedding 统一空间）",
+            "评测标准 env 五件套（中文 embedding/reranker + 关 auto-consolidation，见 HINDSIGHT_VERIFIED_FACTS.md）",
+        ],
+        "storage": "pg0（内嵌 PostgreSQL，embedded 自包含无外部服务；bank_id={user}__{mode} 物理隔离双身份）",
+        "venv": ".venv-hindsight",
+        "known_issues": [
+            "reflect 的 agent 多轮 tool call 撞 gemini-3 thought_signature（proxy 不透传）→ reflect stage 族内降 gemini-2.5-flash（per-stage env），retain 仍统一 gemini-3；修 proxy 透传后可回归",
+            "auto-consolidation 默认开启且产英文 observation（不带 turn_id）→ 评测 env 已关闭，consolidation 只走显式 API",
+            "默认 embedding(bge-small-en)/reranker(ms-marco) 是英文模型，中文必换（A/B 实测英文 reranker 把正确答案压到 #4）",
         ],
     },
 }
@@ -329,6 +394,29 @@ MEMORY_SYSTEMS: dict = {
         "deployment": "QNAP TS-X65 :16379（已有，multica 同机）",
         "real_time_stats": True,
         "stats_source": "B0 阶段直连 FalkorDB 拉 GRAPH.LIST + Cypher COUNT",
+    },
+    "hindsight_storage": {
+        "name": "Hindsight 四路检索 + pg0",
+        "kind": "hybrid_memory",
+        "introduction": {
+            "tldr": "一个会「反思」的记忆系统：不只「存下来、查出来」，还能基于经历总结出「信念」。查询有两档：recall 快查（不调大模型，便宜快速）和 reflect 深思（调大模型做合成）——同一系统提供早绑定/晚绑定两个范式数据点，是 KidsBench 范式制图的关键旋钮。",
+            "problem": "早绑定系统写入时就把对话压缩成事实，可能过早丢失「当时不重要、后来才重要」的信息；纯晚绑定每次读取都很贵。Hindsight 把两条路都留着，让使用方按需选择。",
+            "mechanism": [
+                "Retain（记住）：写入时 LLM 同步抽取事实/实体/关系/时间，入 pg0（内嵌 PostgreSQL）",
+                "Recall（快查）：向量 + BM25 + 图（实体/时序/因果）四路并行召回 → RRF 融合 → bge-reranker 重排，全程不调 LLM",
+                "Reflect（深思）：LLM agent 检索后做深度分析，合成「心智模型」（如：这孩子遇挫折容易自我否定）",
+                "记忆三分类：World facts（客观事实）/ Experiences（经历）/ Mental models（反思得出的信念）",
+            ],
+            "key_diff": "「事实 vs 信念」分离，正好对应 K12 的「客观知识 vs 主观感受」；recall/reflect 双读取路径 = 同一系统贡献早/晚绑定两个 Pareto 对照点（smoke 实测：read 成本 0 tok/1.3s vs 43k tok/47s，correct 持平）",
+        },
+        "schema": {
+            "tables": ["banks", "documents", "memory_units", "entities", "unit_entities", "memory_links", "mental_models"],
+            "fact_types": ["world", "experience", "opinion", "observation"],
+            "scoped_by": "bank_id（= user_id + __recall/__reflect 模式后缀，物理隔离）",
+        },
+        "deployment": "embedded pg0（内嵌 PostgreSQL，~/.pg0/instances/，跟随 harness 进程，无外部服务）",
+        "real_time_stats": False,
+        "stats_source": "B0 阶段从最近 run 的 results.jsonl 抽 stats",
     },
 }
 
