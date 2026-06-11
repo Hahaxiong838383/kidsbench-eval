@@ -227,7 +227,10 @@ def make_graphiti_adapter(preset: LLMPreset) -> MemoryAdapter | None:
         # bge 切换后用新 database 避开旧 384d 索引污染
         falkor_database="kidsbench_bge",
         embedder_model=preset.embedding.model,
-        reasoning_effort=preset.reasoning_effort or "minimal",
+        # 跟随 preset：gemini 系需 minimal 防 thinking 耗光；deepseek 不支持
+        # reasoning_effort 参数（只认 high/low/medium/max/xhigh，传 minimal 必 400），
+        # preset 留空 → None → compat 层不带该参数（2026-06-12 全量首跑实锤）
+        reasoning_effort=preset.reasoning_effort,
     )
     try:
         return GraphitiAdapter(
@@ -305,11 +308,11 @@ def _ensure_hindsight_server(preset: LLMPreset):
     os.environ.setdefault("HINDSIGHT_API_RERANKER_LOCAL_MODEL", "BAAI/bge-reranker-v2-m3")
     # 关自动 consolidation：评测期间后台写入不受控会破坏可比性 + 产英文 observation（Phase 1.5 实测）
     os.environ.setdefault("HINDSIGHT_API_ENABLE_AUTO_CONSOLIDATION", "false")
-    # reflect agent 多轮 tool call 撞 gemini-3 thought_signature（proxy 不透传，HTTP 400×6）
-    # → reflect stage 族内降级 gemini-2.5-flash（同 proxy，无此强制）。retain 仍统一 gemini-3。
-    # capability 如实标注；usage 照常计量（Phase 3 实测 0 错误 + 正确中文合成）
+    # reflect stage 历史注记：gemini-3 经 proxy 多轮 tool call 丢 thought_signature
+    # 曾需族内降级 gemini-2.5-flash。2026-06-12 切换国产 deepseek 后该问题不存在
+    # （thought_signature 是 gemini-3+Vertex 特有），reflect 跟随统一注入 preset。
     os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_PROVIDER", "openai")
-    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_MODEL", "gemini-2.5-flash")
+    os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_MODEL", preset.model)
     os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_BASE_URL", preset.base_url)
     os.environ.setdefault("HINDSIGHT_API_REFLECT_LLM_API_KEY", preset.get_api_key())
 
@@ -558,6 +561,24 @@ def build_prompt(
     return system, user
 
 
+
+import re as _re
+
+_CIRCLED_NUMS = str.maketrans("①②③④⑤⑥⑦⑧⑨⑩", "1234567890")
+
+
+def _safe_user_id(adapter_name: str, qid: str) -> str:
+    """user_id ASCII 安全化。
+
+    新题库 qid 含圈数字（S14-⑤-008），直接拼进 user_id 会炸 graphiti 的
+    FalkorDB RediSearch 查询语法（2026-06-12 全量首跑 149 题全 clear_failed）。
+    圈数字转普通数字 + 其余非词字符转下划线。只影响存储隔离标识，
+    resume 按 (adapter,qid) 记账不受影响。
+    """
+    safe = _re.sub(r"[^\w\-]", "_", qid.translate(_CIRCLED_NUMS))
+    return f"eval_{adapter_name}_{safe}"
+
+
 def evaluate_one(
     adapter: MemoryAdapter,
     q: dict,
@@ -569,7 +590,7 @@ def evaluate_one(
         return evaluate_phased(adapter, q, llm_client, nli)
 
     qid = q["qid"]
-    user_id = f"eval_{adapter.name}_{qid}"
+    user_id = _safe_user_id(adapter.name, qid)
     ts = time.time()
 
     # 1. 每题前注入 Oracle gold（如果是 Oracle）
@@ -786,7 +807,7 @@ def evaluate_phased(
 ) -> TurnLog:
     """T5/T6 双阶段编排：ingest → consolidate(trigger) → probe（缺口2/3）。"""
     qid = q["qid"]
-    user_id = f"eval_{adapter.name}_{qid}"
+    user_id = _safe_user_id(adapter.name, qid)
     ts = time.time()
     setup_oracle_for_question(adapter, q)
     try:
@@ -952,6 +973,12 @@ def main() -> int:
         action="store_true",
         help="断点续跑：读已有 results.jsonl，跳过已完成的 (adapter,qid)，追加写（防中断从头跑）。",
     )
+    parser.add_argument(
+        "--skip-baselines",
+        action="store_true",
+        help="跳过 nomemory/fullhistory/oracle 基线（多 venv 分批跑时基线只需跑一次，"
+        "避免重复烧 API）。",
+    )
     args = parser.parse_args()
 
     # 加载 .env.local（含 KIDSBENCH_*_API_KEY 等 secret，已 chmod 600 + .gitignored）
@@ -995,7 +1022,9 @@ def main() -> int:
     questions = load_questions(args.questions)
     print(f"[harness] loaded {len(questions)} questions from {args.questions}", flush=True)
 
-    adapters = make_baseline_adapters()
+    adapters = {} if args.skip_baselines else make_baseline_adapters()
+    if args.skip_baselines:
+        print("[harness] --skip-baselines：跳过 nomemory/fullhistory/oracle", flush=True)
     if args.include_mem0:
         mem0 = make_mem0_adapter(preset)
         if mem0 is None:
