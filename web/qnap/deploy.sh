@@ -46,6 +46,7 @@ COPYFILE_DISABLE=1 tar czf "$TAR" \
   -C "$PROJECT/web/backend" requirements.txt app \
   -C "$PROJECT" src \
   -C "$PROJECT" configs \
+  -C "$PROJECT" questions \
   -C "$PROJECT/web/frontend" dist \
   -C "$PROJECT/web/qnap" Dockerfile.backend Dockerfile.frontend nginx.conf docker-compose.yml
 ls -lh "$TAR"
@@ -77,9 +78,10 @@ sshpass -e ssh "$HOST_ALIAS" "
   # 后端：app/ + requirements.txt + src/ + configs/ + Dockerfile → backend/
   mv app backend/app
   mv requirements.txt backend/requirements.txt
-  rm -rf backend/src backend/configs
+  rm -rf backend/src backend/configs backend/questions
   mv src backend/src
   mv configs backend/configs
+  mv questions backend/questions
   mv Dockerfile.backend backend/Dockerfile
   # 前端：dist/ + nginx.conf + Dockerfile.frontend → frontend/
   mv dist frontend/dist

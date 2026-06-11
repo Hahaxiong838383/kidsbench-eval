@@ -481,15 +481,40 @@ def render_scene_context(scene_context: dict | None) -> str:
     return f"当前场景：{' ｜ '.join(parts)}\n\n" if parts else ""
 
 
+def render_current_session(current_session: list[dict] | None) -> str:
+    """渲染「当前对话」段（协议 v1.1：T+0 当场对话在 LLM context 里）。
+
+    这段模拟产品 runtime 的会话上下文——孩子刚说过的话被测系统必须看得见，
+    否则回应脱节、判分失真（扣的是评测环境的分，不是记忆能力的分）。
+    它只进 prompt，不调 adapter.write、不进判分（与 scene_context 同三边界）。
+    空/缺省 → 返回空串，旧 124 题（无 current_session 字段）行为不变。
+    """
+    if not current_session:
+        return ""
+    role_names = {"assistant": "小可", "user": "孩子", "system": "系统"}
+    lines = [
+        f"{role_names.get(t.get('role', 'user'), t.get('speaker', '孩子'))}: {t['text']}"
+        for t in current_session
+    ]
+    return "当前对话（本次会话刚刚发生）：\n" + "\n".join(lines) + "\n\n"
+
+
 def build_prompt(
-    query: str, memories: list[dict], scene_context: dict | None = None
+    query: str, memories: list[dict], scene_context: dict | None = None,
+    current_session: list[dict] | None = None,
 ) -> tuple[str, str]:
-    """组 prompt。scene_context 默认 None → 完全向后兼容（system 与旧版一致）。"""
+    """组 prompt。scene_context / current_session 默认 None → 完全向后兼容。
+
+    段落顺序（协议 v1.1）：当前场景 → 相关记忆 → 当前对话 → 触发输入。
+    """
     scene_block = render_scene_context(scene_context)
-    # 动态 system：有场景才提「当前场景」，无场景时与旧版逐字相同（保 27 题/14 题不破）
+    current_block = render_current_session(current_session)
+    # 动态 system：有该段才提对应提示语，全无时与旧版逐字相同（保旧题不破）
     scene_hint = "「当前场景」和" if scene_block else ""
+    current_hint = "「当前对话」和" if current_block else ""
     system = (
-        f"你是 K12 儿童 AI 陪伴助手。请结合{scene_hint}「相关记忆」简短回答用户的问题。"
+        f"你是 K12 儿童 AI 陪伴助手。请结合{scene_hint}{current_hint}"
+        "「相关记忆」简短回答用户的问题。"
         "如果记忆里没有相关信息，请直接说不知道，不要编造。"
         "回答控制在 30 字以内。"
     )
@@ -498,7 +523,8 @@ def build_prompt(
         memory_block = f"相关记忆：\n{context}"
     else:
         memory_block = "相关记忆：（无）"
-    user = f"{scene_block}{memory_block}\n\n用户问题：{query}\n\n你的回答："
+    user = (f"{scene_block}{memory_block}\n\n{current_block}"
+            f"用户问题：{query}\n\n你的回答：")
     return system, user
 
 
@@ -593,7 +619,8 @@ def evaluate_one(
 
     # 6. 组 prompt + 调 LLM
     memory_dicts = [{"text": t} for t in recalled_texts]
-    system_p, user_p = build_prompt(q["query"], memory_dicts, q.get("scene_context"))
+    system_p, user_p = build_prompt(q["query"], memory_dicts, q.get("scene_context"),
+                                    q.get("current_session"))
     try:
         llm_resp = llm_client.complete(system=system_p, user=user_p, temperature=0.0, max_tokens=4096)
         answer = llm_resp.text.strip()

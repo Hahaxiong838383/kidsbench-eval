@@ -42,3 +42,42 @@ def test_render_skips_empty_values():
 
 def test_render_none():
     assert render_scene_context(None) == ""
+
+
+# ============= current_session（协议 v1.1，2026-06-11）=============
+
+
+def test_no_current_session_backward_compatible():
+    """缺省 current_session → system/user 与旧版逐字相同（旧 124 题零影响）。"""
+    s_old, u_old = build_prompt("q", [{"text": "m"}])
+    s_new, u_new = build_prompt("q", [{"text": "m"}], None, None)
+    assert s_old == s_new and u_old == u_new
+    assert "当前对话" not in u_new
+
+
+def test_current_session_renders_into_prompt():
+    cur = [
+        {"turn_id": "c_001", "role": "assistant", "speaker": "小可",
+         "text": "天天晚上好～", "timestamp": 1},
+        {"turn_id": "c_002", "role": "user", "speaker": "天天",
+         "text": "今天被班主任当着全班说了，烦死了", "timestamp": 2},
+    ]
+    s, u = build_prompt("[系统事件] 坐姿=趴下", [{"text": "m"}], None, cur)
+    assert "「当前对话」" in s
+    assert "当前对话（本次会话刚刚发生）：" in u
+    assert "小可: 天天晚上好～" in u
+    assert "孩子: 今天被班主任当着全班说了，烦死了" in u
+    # 段落顺序：记忆在前、当前对话在后、触发输入最后
+    assert u.index("相关记忆") < u.index("当前对话") < u.index("用户问题")
+
+
+def test_current_session_system_role():
+    cur = [{"turn_id": "c_001", "role": "system", "speaker": "system",
+            "text": "[系统已通知监护人]", "timestamp": 1}]
+    _, u = build_prompt("q", [], None, cur)
+    assert "系统: [系统已通知监护人]" in u
+
+
+def test_empty_current_session_no_render():
+    s, u = build_prompt("q", [], None, [])
+    assert "当前对话" not in u and "「当前对话」" not in s

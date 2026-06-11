@@ -14,6 +14,8 @@ COPY app/ ./app/
 COPY src/ ./src/
 # B1 phase 3：preset TOML 文件（用户添加的可经 volume mount 持久化覆盖）
 COPY configs/ ./configs/
+# 题库板块：jsonl + 补丁 + 修题清单 + raw 快照（上传转换要套用补丁）
+COPY questions/ ./questions/
 ENV PYTHONPATH=/app/src:${PYTHONPATH:-}
 
 # 默认 env（可被 docker-compose environment 覆盖）

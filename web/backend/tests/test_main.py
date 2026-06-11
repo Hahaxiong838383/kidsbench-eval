@@ -133,3 +133,60 @@ def test_state_graphiti_graceful_fallback(client):
     else:
         assert body["real_time"] is True
         assert body.get("graphs") is not None
+
+
+# ============= 题库板块（2026-06-11）=============
+
+
+def test_questionbank_overview(client):
+    response = client.get("/api/questionbank")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["bank_version"] == "v0.1_记忆"
+    assert body["health"]["total_in_jsonl"] >= 140
+    # 管线与 harness 白话说明必须在（显性化要求）
+    assert len(body["pipeline"]) == 7
+    assert all("plain" in s and "term" in s for s in body["pipeline"])
+    assert "plain" in body["harness"]
+    assert len(body["harness"]["steps"]) == 6
+
+
+def test_questionbank_fixes(client):
+    response = client.get("/api/questionbank/fixes")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] >= 60
+    first = body["items"][0]
+    assert all(k in first for k in ("qid", "problem", "diagnosis", "fix"))
+
+
+def test_questionbank_question_detail(client):
+    response = client.get("/api/questionbank/questions/S04-④-002")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["question"]["qid"] == "S04-④-002"
+    assert body["question"]["gold_memory_ids"]
+
+
+def test_questionbank_question_404(client):
+    assert client.get("/api/questionbank/questions/NOPE-001").status_code == 404
+
+
+def test_questionbank_upload_rejects_non_csv(client):
+    response = client.post(
+        "/api/questionbank/upload",
+        files={"file": ("evil.exe", b"MZ...", "application/octet-stream")})
+    assert response.status_code == 400
+
+
+def test_questionbank_upload_roundtrip(client, tmp_path):
+    """上传当前快照 CSV → 应转换成功且不报新增 issue。"""
+    from app.config import QUESTIONS_PATH
+    raw = next((QUESTIONS_PATH / "raw").glob("*.csv"))
+    response = client.post(
+        "/api/questionbank/upload",
+        files={"file": (raw.name, raw.read_bytes(), "text/csv")})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["healthy_questions"] >= 140
+    assert body["issues_total"] == 0

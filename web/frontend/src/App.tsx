@@ -8,6 +8,7 @@ import MemoryIndex from "./pages/MemoryIndex";
 import GroupDetail from "./pages/GroupDetail";
 import LiveRun from "./pages/LiveRun";
 import LLMPresets from "./pages/LLMPresets";
+import QuestionBank from "./pages/QuestionBank";
 import Runs from "./pages/Runs";
 import System from "./pages/System";
 
@@ -20,6 +21,7 @@ export default function App() {
         <Route path="adapters/:name" element={<AdapterDetail />} />
         <Route path="memory" element={<MemoryIndex />} />
         <Route path="memory/:name" element={<MemoryDetail />} />
+        <Route path="questionbank" element={<QuestionBank />} />
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:group" element={<GroupDetail />} />
         <Route path="live" element={<LiveRun />} />
