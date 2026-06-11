@@ -1,5 +1,5 @@
 # KidsBench frontend nginx (image-based，避开 QNAP ACL volume 权限问题)
-FROM docker.1ms.run/library/nginx:1.24-alpine
+FROM docker.1ms.run/library/nginx:alpine
 
 # 把 dist / nginx.conf COPY 进 image，owner=root，nginx user 能读
 COPY dist /usr/share/nginx/html
