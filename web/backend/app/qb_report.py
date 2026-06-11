@@ -119,8 +119,15 @@ def _diag_query_gap(rows: list[dict], questions: list[dict]) -> list[str]:
     mem_rows = [r for r in rows if r["adapter"] not in ("nomemory", "fullhistory", "oracle")]
     if not mem_rows:
         mem_rows = [r for r in rows if r["adapter"] == "fullhistory"]
-    sys_recall = [r.get("recall_metric") or 0 for r in mem_rows if r["qid"] in sys_qids]
-    qa_recall = [r.get("recall_metric") or 0 for r in mem_rows if r["qid"] not in sys_qids]
+    def _recall(r: dict) -> float:
+        # recall_metric 两种历史形态：float（旧 run）或 dict{recall,...}（新 run）
+        m = r.get("recall_metric")
+        if isinstance(m, dict):
+            return float(m.get("recall") or 0)
+        return float(m or 0)
+
+    sys_recall = [_recall(r) for r in mem_rows if r["qid"] in sys_qids]
+    qa_recall = [_recall(r) for r in mem_rows if r["qid"] not in sys_qids]
     if not sys_recall or not qa_recall:
         return []
     avg = lambda x: sum(x) / len(x)  # noqa: E731
