@@ -25,12 +25,12 @@ from .state import router as state_router
 # 启动时尝试加载 .env.local（本地 dev 显示 preset configured 状态）
 # Production container 内通常没此文件，load_dotenv_local 返回 0 即可
 try:
+    from kidsbench.config import load_dotenv_local
+
     from .llm_presets import load_preset as _lp  # noqa: F401 - 触发 sys.path 注入
 
-    from kidsbench.config import load_dotenv_local  # noqa: E402
-
     load_dotenv_local()
-except (ImportError, Exception):  # noqa: BLE001
+except (ImportError, Exception):
     pass
 
 

@@ -57,7 +57,7 @@ def _safe_int_id(event: dict) -> int:
 class Subscription:
     """包装订阅者队列 + 健康状态（Gemini B.2 自愈设计）。"""
 
-    __slots__ = ("queue", "lagging")
+    __slots__ = ("lagging", "queue")
 
     def __init__(self) -> None:
         self.queue: asyncio.Queue = asyncio.Queue(maxsize=SUBSCRIBER_QUEUE_SIZE)
@@ -186,7 +186,7 @@ async def ingest_event(run_id: str, request: Request) -> dict:
     """
     try:
         body: Any = await request.json()
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         raise HTTPException(status_code=400, detail=f"invalid json: {exc!s}") from exc
     if isinstance(body, dict):
         events = [body]

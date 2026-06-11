@@ -95,11 +95,20 @@ export default function QuestionBank() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">题库与转换管线</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          当前题库：{ov.bank_version} ｜ 快照：{ov.raw_snapshots.join(", ") || "无"}
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold">题库与转换管线</h1>
+          <p className="text-sm text-slate-500 mt-1">
+            当前题库：{ov.bank_version} ｜ 快照：{ov.raw_snapshots.join(", ") || "无"}
+          </p>
+        </div>
+        <a
+          href="/api/questionbank/export-analysis"
+          className="px-4 py-2 rounded border border-emerald-600 text-emerald-700 text-sm hover:bg-emerald-50"
+          download
+        >
+          导出分析报告（MD）
+        </a>
       </div>
 
       {/* ===== 上传入口 ===== */}

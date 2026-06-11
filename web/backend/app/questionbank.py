@@ -289,3 +289,22 @@ async def upload_csv(file: UploadFile) -> dict:
     (upload_dir / "report.json").write_text(
         json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     return report
+
+
+@router.get("/export-analysis")
+def export_analysis(run_group: str | None = None) -> PlainTextResponse:
+    """导出人话分析报告 MD（题库问题/评测诊断/改善建议及论证）。
+
+    ?run_group=xxx 指定分析哪次运行；缺省取最新一次。
+    """
+    from fastapi.responses import PlainTextResponse
+
+    from .config import RUNS_PATH
+    from .qb_report import build_analysis_md
+
+    md = build_analysis_md(QUESTIONS_PATH, RUNS_PATH, run_group)
+    ts = time.strftime("%Y%m%d_%H%M")
+    return PlainTextResponse(
+        md, media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition":
+                 f'attachment; filename="kidsbench_analysis_{ts}.md"'})

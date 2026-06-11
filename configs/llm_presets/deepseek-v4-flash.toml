@@ -1,0 +1,23 @@
+# KidsBench LLM Preset — DeepSeek V4 Flash（评测主用，国产+弱模型）
+#
+# 川哥指令（2026-06-11）：
+# 1. 删除 gemini-3.5（能力过强，影响评测——LLM 太强靠常识硬猜，
+#    无法区分"记忆系统好"还是"LLM 强"）
+# 2. 优先 deepseek / qwen 等国产模型（与小可产品真实模型生态一致）
+# 分工：回答模型=deepseek-v4-flash（弱档），NLI judge=Qwen3.6（独立判分，
+# 避免自己判自己）。记忆系统内部 LLM（mem0 抽取/hindsight retain）
+# 同走本 preset 统一注入。
+#
+# api_key 通过 env 注入（.env.local，chmod 600 不入 git）
+name = "deepseek-v4-flash"
+display_name = "DeepSeek V4 Flash（评测主用，国产弱档防常识污染）"
+provider = "deepseek"
+base_url = "https://api.deepseek.com/v1"
+api_key_env = "KIDSBENCH_DEEPSEEK_API_KEY"
+model = "deepseek-v4-flash"
+max_tokens = 4096
+
+[embedding]
+provider = "huggingface"
+model = "BAAI/bge-small-zh-v1.5"
+dim = 512

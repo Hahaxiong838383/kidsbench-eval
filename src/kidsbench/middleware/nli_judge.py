@@ -150,9 +150,20 @@ def judge_facts_nli(
     else:
         verdict = "evasive"  # 没说对也没乱猜
 
+    # score = positive 命中比例（partial credit，2026-06-11 新题库多命题口径）：
+    # 旧题多为单命题（比例 ∈ {0,1}，与原 0/1 二值完全一致，零回归）；
+    # 新题 2-3 命题，「3 中 2」给 0.67 而非一刀切 0——区分度更平滑。
+    # verdict 三值判定不变（correct 仍=全蕴含），acc 统计口径不受影响；
+    # 蕴含互斥命题（乱猜）仍直接 0 分。
+    if guessed:
+        score = 0.0
+    elif pos:
+        score = sum(1 for _, r in pos if r.is_entailment) / len(pos)
+    else:
+        score = 0.0
     return {
         "verdict": verdict,
-        "score": 1.0 if verdict == "correct" else 0.0,
+        "score": score,
         "need_human": need_human,
         "positive_pass": positive_pass,
         "guessed": guessed,

@@ -63,12 +63,14 @@ def test_current_session_renders_into_prompt():
          "text": "今天被班主任当着全班说了，烦死了", "timestamp": 2},
     ]
     s, u = build_prompt("[系统事件] 坐姿=趴下", [{"text": "m"}], None, cur)
-    assert "「当前对话」" in s
+    # 事件触发 → 主动陪伴模式 system（2026-06-11 smoke 教训：问答式 prompt
+    # 下连 Oracle 都不使用记忆）
+    assert "小可" in s and "必须自然地融入回应" in s
     assert "当前对话（本次会话刚刚发生）：" in u
     assert "小可: 天天晚上好～" in u
     assert "孩子: 今天被班主任当着全班说了，烦死了" in u
     # 段落顺序：记忆在前、当前对话在后、触发输入最后
-    assert u.index("相关记忆") < u.index("当前对话") < u.index("用户问题")
+    assert u.index("相关记忆") < u.index("当前对话") < u.index("当前事件")
 
 
 def test_current_session_system_role():

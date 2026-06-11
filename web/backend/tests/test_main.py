@@ -190,3 +190,13 @@ def test_questionbank_upload_roundtrip(client, tmp_path):
     body = response.json()
     assert body["healthy_questions"] >= 140
     assert body["issues_total"] == 0
+
+
+def test_questionbank_export_analysis(client):
+    response = client.get("/api/questionbank/export-analysis")
+    assert response.status_code == 200
+    assert "attachment" in response.headers.get("content-disposition", "")
+    text = response.text
+    # 报告必须含人话章节（显性化要求）
+    for needle in ("题库与评测分析报告", "题库的问题与改进", "改善建议与论证", "三条铁律"):
+        assert needle in text

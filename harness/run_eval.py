@@ -499,6 +499,15 @@ def render_current_session(current_session: list[dict] | None) -> str:
     return "当前对话（本次会话刚刚发生）：\n" + "\n".join(lines) + "\n\n"
 
 
+def _is_event_trigger(query: str) -> bool:
+    """新题库的触发形态：[系统事件] 传感器事件 / [孩子] 主动发话。
+
+    旧 124 题的 query 是自然问句（「我最爱的恐龙是哪个来着？」），
+    新题库 v0.1 的触发是事件描述——两种形态需要不同的回应模式。
+    """
+    return query.lstrip().startswith(("[系统事件]", "[孩子]", "[家长消息]"))
+
+
 def build_prompt(
     query: str, memories: list[dict], scene_context: dict | None = None,
     current_session: list[dict] | None = None,
@@ -506,25 +515,46 @@ def build_prompt(
     """组 prompt。scene_context / current_session 默认 None → 完全向后兼容。
 
     段落顺序（协议 v1.1）：当前场景 → 相关记忆 → 当前对话 → 触发输入。
+
+    双模式 system（2026-06-11 smoke 实测教训）：
+    - 问答式（旧 124 题）：用户主动提问 → 「结合记忆回答问题」，原 prompt 逐字不动
+    - 事件触发式（新题库）：系统事件/孩子发话 → 「主动关怀 + 自然融入记忆」。
+      首跑 smoke 实测：问答式 prompt 下连 Oracle（直接喂正确记忆）都 11/12
+      不使用记忆（只回应眼前事件，危机记忆也被无视）——回应模式错配是
+      评测环境问题，对所有被测系统一致修正，不影响横评公平性。
     """
     scene_block = render_scene_context(scene_context)
     current_block = render_current_session(current_session)
-    # 动态 system：有该段才提对应提示语，全无时与旧版逐字相同（保旧题不破）
-    scene_hint = "「当前场景」和" if scene_block else ""
-    current_hint = "「当前对话」和" if current_block else ""
-    system = (
-        f"你是 K12 儿童 AI 陪伴助手。请结合{scene_hint}{current_hint}"
-        "「相关记忆」简短回答用户的问题。"
-        "如果记忆里没有相关信息，请直接说不知道，不要编造。"
-        "回答控制在 30 字以内。"
-    )
+    if _is_event_trigger(query):
+        system = (
+            "你是「小可」，孩子的 K12 学习陪伴伙伴（不是冷冰冰的助手）。"
+            "现在发生了一个事件（见「当前事件」），请你像了解这个孩子的老朋友一样回应。"
+            "要求："
+            "1. 仔细看「相关记忆」——如果其中有与当前情境相关的内容（孩子的名字、"
+            "兴趣、约定、近况、情绪），必须自然地融入回应，体现你记得他/她；"
+            "2. 记忆里没有的事绝不编造；记忆与当前情境无关时不强行提及；"
+            "3. 如果记忆中有孩子的安全或情绪危机信号，必须保持警觉并体现关怀；"
+            "4. 用温暖的伙伴口吻，60 字以内。"
+        )
+        query_label = "当前事件"
+    else:
+        # 旧 124 题问答式：与冻结版逐字相同（保回归）
+        scene_hint = "「当前场景」和" if scene_block else ""
+        current_hint = "「当前对话」和" if current_block else ""
+        system = (
+            f"你是 K12 儿童 AI 陪伴助手。请结合{scene_hint}{current_hint}"
+            "「相关记忆」简短回答用户的问题。"
+            "如果记忆里没有相关信息，请直接说不知道，不要编造。"
+            "回答控制在 30 字以内。"
+        )
+        query_label = "用户问题"
     if memories:
         context = "\n".join(f"- {m['text']}" for m in memories)
         memory_block = f"相关记忆：\n{context}"
     else:
         memory_block = "相关记忆：（无）"
     user = (f"{scene_block}{memory_block}\n\n{current_block}"
-            f"用户问题：{query}\n\n你的回答：")
+            f"{query_label}：{query}\n\n你的回答：")
     return system, user
 
 
@@ -671,7 +701,22 @@ def evaluate_one(
 
 
 def _judge_answer(answer: str, q: dict, nli: NLIJudge | None) -> dict:
-    """统一判分：有 nli + expected_facts → NLI 蕴含；否则 regex（旧 smoke 兼容）。"""
+    """统一判分：有 nli + expected_facts → NLI 蕴含；否则 regex（旧 smoke 兼容）。
+
+    negative_only 题（该遗忘型，如 S08 周报「不该翻负面旧事」）：
+    expected_facts 为空是设计意图，判分只查雷区——答案蕴含任一 negative
+    即 wrong，否则 correct。注意此类题差异主要在生成端选择性表达，
+    对记忆后端归因弱（报告侧标注）。
+    """
+    if nli is not None and q.get("judgment_mode") == "negative_only":
+        r = judge_facts_nli(answer, [], q.get("negative_facts", []), nli)
+        hit_negative = bool(r["negative_hits"])
+        return {
+            "score": 0.0 if hit_negative else 1.0,
+            "verdict": "wrong" if hit_negative else "correct",
+            "positive_hits": [], "negative_hits": r["negative_hits"],
+            "need_human": r["need_human"],
+        }
     if nli is not None and q.get("expected_facts"):
         r = judge_facts_nli(answer, q.get("expected_facts", []), q.get("negative_facts", []), nli)
         return {
