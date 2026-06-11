@@ -1,5 +1,11 @@
 # KidsBench frontend nginx (image-based，避开 QNAP ACL volume 权限问题)
-FROM docker.1ms.run/library/nginx:alpine
+# 1.24-alpine 在 1ms mirror 已下架；用 QNAP 本地 retag 的旧镜像作 base
+# （nginx 1.27+ 严格 header 检查拒 HK 1.24 经 FRP 透传请求 → 必须钉 1.24，
+#  见 memory feedback_qnap_web_deploy_pitfalls 第四条）。base 由旧 frontend
+# dangling 镜像 docker tag 而来：kidsbench-nginx-base:1.24-alpine
+FROM kidsbench-nginx-base:1.24-alpine
+# base 自带旧版静态文件，先清掉防 hash 文件残留
+RUN rm -rf /usr/share/nginx/html/*
 
 # 把 dist / nginx.conf COPY 进 image，owner=root，nginx user 能读
 COPY dist /usr/share/nginx/html
