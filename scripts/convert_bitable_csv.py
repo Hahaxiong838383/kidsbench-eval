@@ -448,7 +448,35 @@ def scan_redlines(result: ConvertResult) -> None:
 
 # ---------------------------------------------------------------- 主流程
 
-def convert(csv_path: Path, out_dir: Path, patches_path: Path) -> ConvertResult:
+def merge_hypotheses(result: ConvertResult, hyp_path: Path) -> int:
+    """合并 NLI 命题草稿（gen_hypotheses.py 产出）进题目。
+
+    只合并 draft/approved 状态；failed/needs_review 的题保持 expected_facts
+    为空（harness 跑到会显式跳过判分，不会静默错判）。
+    jsonl 里的 hypotheses_status 字段记录每题命题来源状态，可审计。
+    """
+    if not hyp_path.exists():
+        return 0
+    hyps = {h["qid"]: h for h in json.loads(hyp_path.read_text(encoding="utf-8"))}
+    merged = 0
+    for q in result.questions:
+        h = hyps.get(q["qid"])
+        if h is None:
+            q["hypotheses_status"] = "missing"
+            continue
+        if h["status"] not in ("draft", "approved"):
+            q["hypotheses_status"] = h["status"]
+            continue
+        q["expected_facts"] = h["expected_facts"]
+        q["negative_facts"] = h["negative_facts"]
+        q["style_points"] = h.get("style_points", [])
+        q["hypotheses_status"] = h["status"]
+        merged += 1
+    return merged
+
+
+def convert(csv_path: Path, out_dir: Path, patches_path: Path,
+            hypotheses_path: Path) -> ConvertResult:
     result = ConvertResult()
     patches = load_patches(patches_path)
     with csv_path.open(encoding="utf-8-sig") as f:
@@ -460,6 +488,7 @@ def convert(csv_path: Path, out_dir: Path, patches_path: Path) -> ConvertResult:
                 result.patched_qids.append(qid)
             convert_row(row, result, flags)
     scan_redlines(result)
+    merge_hypotheses(result, hypotheses_path)
 
     redline_qids = {i.qid for i in result.issues if i.kind.startswith("redline")}
     result.questions = [q for q in result.questions if q["qid"] not in redline_qids]
@@ -484,6 +513,8 @@ def main() -> int:
     ap.add_argument("--csv", default="questions/raw/v01_memory_20260611.csv")
     ap.add_argument("--out-dir", default="questions")
     ap.add_argument("--patches", default="questions/patches/v01_memory_patches.json")
+    ap.add_argument("--hypotheses",
+                    default="questions/patches/v01_memory_hypotheses.json")
     args = ap.parse_args()
 
     csv_path = Path(args.csv)
@@ -491,7 +522,8 @@ def main() -> int:
         print(f"❌ CSV 不存在: {csv_path}", file=sys.stderr)
         return 1
 
-    result = convert(csv_path, Path(args.out_dir), Path(args.patches))
+    result = convert(csv_path, Path(args.out_dir), Path(args.patches),
+                     Path(args.hypotheses))
 
     from collections import Counter
     kinds = Counter(i.kind for i in result.issues)
