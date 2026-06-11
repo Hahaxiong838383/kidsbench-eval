@@ -58,3 +58,4 @@ docker/volumes/
 .tmp/
 *.tmp
 *.bak
+data/uploads/
