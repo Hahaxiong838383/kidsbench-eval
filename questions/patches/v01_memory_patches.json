@@ -1,0 +1,1262 @@
+[
+ {
+  "qid": "S02-④-003",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证短时跨天记忆在连续升档引导中的复用」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-④-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证情景记忆在消除用户升档焦虑中的应用」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-④-005",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证系统对特定用户交互模式的记忆和风格保持」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-003",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证基于用户主动行为的比喻风格的延续」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-005",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在抵触用户面前，温和协商风格的跨天一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-006",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在有失败史的用户面前，风格一致性和自主权赋予的跨天协同」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-007",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证从容引导风格的跨天一致性和耐心」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-008",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证自定义荣誉角色的跨会话延续和升级」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-009",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证温和成长引导风格在连续升档中的稳定性和一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-④-002",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证远眺方式偏好记忆的精准调用」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-④-006",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证情景记忆对用户情绪状态的感知和休息建议的情感适配」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-④-007",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在连续高压下，个性化放松记忆的延续与深度关怀能力」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-⑤-002",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证基于用户兴趣的创意提醒风格一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证个性化趣味远眺策略的跨天延续和迭代」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S03-⑤-005",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在持续外部压力下，系统伙伴角色和微休息策略的一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S06-④-009",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在重复外部压力下，情景记忆如何持续巩固内在动机」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S06-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证基于用户自我目标的激励风格一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S06-⑤-010",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证阶段性目标激励风格的跨天连续性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S06-⑤-011",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证低龄用户自定义英雄角色在庆祝中的跨天延续和故事化」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S07-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证情景记忆在家长消息传达中创造叙事弧光的能力」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S11-④-002",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在连续追问中跨天召回自定义比喻并延续启发的能力」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S11-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证连续动物学问题中启发式教学风格的跨会话一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）；另补 fact_distribution=single（gold 单句，字段原为空）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S11-⑤-006",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证启发式风格在遇到学科根本性问题时的稳定性和深度适配」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）；另补 fact_distribution=single（gold 单句，字段原为空）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证跨天创意化休息提醒的风格一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-006",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证系统在陪伴兴趣探索中，能否构建连续一致的成长叙事」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-007",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证基于兴趣的品格激励在行为提醒中的跨天一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-008",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证长程高雅兴趣互动中，诗意风格的一致性与创新」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-009",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在长期信任关系中，安全边界内的人格角色一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-010",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证系统在长期情感修复中的一致性和积极叙事构建」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S12-⑤-011",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证基于兴趣的日常提醒风格一致性维护」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S13-⑤-002",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证危机记忆在后续正向互动中的持久性和警觉机制」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S13-⑤-004",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证系统在危机后的脆弱修复期，如何平衡肯定进步与保持警觉」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S14-⑤-003",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证跨天创作引导中的技术风格连贯性和进步叙事」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S14-⑤-005",
+  "category": "A-时间平移",
+  "problem": "当场题：对话历史全标 T+0（当天），gold 也在 T+0 → 按协议 v1.1 当场对话在 LLM context 里，记忆系统无用武之地，区分度为零",
+  "diagnosis": "出题意图本就是跨天（根本目标：「验证在创作与学业平衡中，温和规则风格的跨天一致性」），时间标记笔误把『昨天的对话』写成了 T+0",
+  "fix": "对话历史与 gold 的时间标记整段平移到昨天（T+0 → T-1d）。星期字样保留不改（解析以 T±Nd 为准）",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S09-⑤-007",
+  "category": "A-时间平移",
+  "problem": "时间基准错位：把『第一天』写成 T+0、『今天』写成 T+1d，导致 gold（初期抵触）落在 T+0 被判当场",
+  "diagnosis": "T±N 约定是相对今天（T+0=今天），出题按『第 N 天』正序写反了",
+  "fix": "整体平移一天：T+0→T-1d（周一首日），T+1d→T+0（今天）。gold 自然落入跨会话历史",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+1d ",
+    "new": "[T+0 "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   }
+  ]
+ },
+ {
+  "qid": "S13-⑤-005",
+  "category": "A-时间平移",
+  "problem": "①危机对话全标 T+0 但触发输入明示隔天（『昨天我妈没骂我…今天他们又笑我』）②gold 是改写句『小可必须告诉你妈妈。』非原句，机器无法定位",
+  "diagnosis": "时间标记笔误 + gold 凭印象改写（且危机题的核心记忆应是孩子的危机表达本身，而非小可的回应）",
+  "fix": "历史平移 T-1d + gold 改为危机原句精确引用",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace_all",
+    "old": "[T+0 ",
+    "new": "[T-1d "
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-1d 16:02] 孩子: \"我不想活了\""
+   }
+  ]
+ },
+ {
+  "qid": "S01-⑤-003",
+  "category": "B-重标移出记忆轨",
+  "problem": "题目设计意图就是『当场』（非笔误），按协议 v1.1 当场信息在 LLM context 里，不经过记忆系统",
+  "diagnosis": "根本目标明示『同一会话中』——考的是 LLM 用好当场 context 的一致性，不是记忆系统",
+  "fix": "保留题目（质量没问题），但移出记忆评测轨道——它考察的是生成端 context 利用能力，归行为/一致评测（0-3 锚点判分）",
+  "ops": [
+   {
+    "op": "reclassify",
+    "to": "behavior_track"
+   }
+  ]
+ },
+ {
+  "qid": "S12-④-003",
+  "category": "B-重标移出记忆轨",
+  "problem": "题目设计意图就是『当场』（非笔误），按协议 v1.1 当场信息在 LLM context 里，不经过记忆系统",
+  "diagnosis": "根本目标明示『超短期…即时个性化』——兴趣话题与坐姿触发在同一会话内几分钟间隔",
+  "fix": "保留题目（质量没问题），但移出记忆评测轨道——它考察的是生成端 context 利用能力，归行为/一致评测（0-3 锚点判分）",
+  "ops": [
+   {
+    "op": "reclassify",
+    "to": "behavior_track"
+   }
+  ]
+ },
+ {
+  "qid": "S10-④-005",
+  "category": "A2-会话边界",
+  "problem": "同日双会话（下午 15:00-16:01 + 晚上 21:20）全标 T+0，gold 在下午段被判当场",
+  "diagnosis": "题目意图是『同一日内跨时段记忆整合』——下午会话已结束（离座 5 小时），其内容应已固化进记忆系统；按天切分的转换逻辑切不开同日双会话",
+  "fix": "在下午段与晚上段之间插入会话分隔符 '---'；转换器按会话边界切分：非最后会话→写入记忆，最后会话（晚上）→当前上下文",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace",
+    "old": "// [T+0 21:20] 小可: \"小颖，又见面啦\"",
+    "new": "--- [T+0 21:20] 小可: \"小颖，又见面啦\""
+   }
+  ]
+ },
+ {
+  "qid": "S04-④-010",
+  "category": "A2-会话边界",
+  "problem": "新手引导对话标 T-0d（=当天）被判当场，但触发输入明示『15分钟后重新入座』=新会话开始",
+  "diagnosis": "题目意图是超短期跨会话（引导会话结束→离座→重新入座），引导会话已结束应固化进记忆",
+  "fix": "题级标记 history_all_write：全部历史按已结束会话写入记忆系统，当前上下文为空",
+  "ops": [
+   {
+    "op": "mark",
+    "flag": "history_all_write"
+   }
+  ]
+ },
+ {
+  "qid": "S08-⑤-003",
+  "category": "C-周报文档型",
+  "problem": "对话历史是『上周周报：…』文档型文本，不是 turn 格式，解析器无法转为可写入记忆的结构",
+  "diagnosis": "周报是小可生成的系统产物，本质等价于小可在上周日晚说的一段话——可规范化为一条 assistant turn",
+  "fix": "改写为标准 turn 格式：[T-7d 21:00] 小可: \"<周报原文>\"（T-7d=上周日，21:00=周报触发时段）；gold 指向该 turn",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小雅，这周任务完成了14个，坐姿良好率87%。用眼稍微有点多，下周注意一下哦。\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小雅，这周任务完成了14个，坐姿良好率87%。用眼"
+   }
+  ]
+ },
+ {
+  "qid": "S08-⑤-005",
+  "category": "C-周报文档型",
+  "problem": "对话历史是『上周周报：…』文档型文本，不是 turn 格式，解析器无法转为可写入记忆的结构",
+  "diagnosis": "周报是小可生成的系统产物，本质等价于小可在上周日晚说的一段话——可规范化为一条 assistant turn",
+  "fix": "改写为标准 turn 格式：[T-7d 21:00] 小可: \"<周报原文>\"（T-7d=上周日，21:00=周报触发时段）；gold 指向该 turn",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小星，这周各方面都在进步！用眼时间也比上周少了。下周试试每天做2次远眺？\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小星，这周各方面都在进步！用眼时间也比上周少了。下"
+   }
+  ]
+ },
+ {
+  "qid": "S08-⑤-007",
+  "category": "C-周报文档型",
+  "problem": "对话历史是『上周周报：…』文档型文本，不是 turn 格式，解析器无法转为可写入记忆的结构",
+  "diagnosis": "周报是小可生成的系统产物，本质等价于小可在上周日晚说的一段话——可规范化为一条 assistant turn",
+  "fix": "改写为标准 turn 格式：[T-7d 21:00] 小可: \"<周报原文>\"（T-7d=上周日，21:00=周报触发时段）；gold 指向该 turn",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小雅，高考近了，用眼时间很难降，但尽量每天保证一次远眺。坐姿再累也要撑一下。\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小雅，高考近了，用眼时间很难降，但尽量每天保证一次"
+   }
+  ]
+ },
+ {
+  "qid": "S08-⑤-009",
+  "category": "C-周报文档型",
+  "problem": "对话历史是『上周周报：…』文档型文本，不是 turn 格式，解析器无法转为可写入记忆的结构",
+  "diagnosis": "周报是小可生成的系统产物，本质等价于小可在上周日晚说的一段话——可规范化为一条 assistant turn",
+  "fix": "改写为标准 turn 格式：[T-7d 21:00] 小可: \"<周报原文>\"（T-7d=上周日，21:00=周报触发时段）；gold 指向该 turn",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小静，这周用眼和坐姿都有波动，没关系，我们下周找回节奏。\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小静，这周用眼和坐姿都有波动，没关系，我们下周找回"
+   }
+  ]
+ },
+ {
+  "qid": "S08-⑤-011",
+  "category": "C-周报文档型",
+  "problem": "对话历史是『上周周报：…』文档型文本，不是 turn 格式，解析器无法转为可写入记忆的结构",
+  "diagnosis": "周报是小可生成的系统产物，本质等价于小可在上周日晚说的一段话——可规范化为一条 assistant turn",
+  "fix": "改写为标准 turn 格式：[T-7d 21:00] 小可: \"<周报原文>\"（T-7d=上周日，21:00=周报触发时段）；gold 指向该 turn",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小安，这周用眼有点多哦，坐姿也可以再加油。下周我们试试每天只完成最重要的三个任务？\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 21:00] 小可: \"小安，这周用眼有点多哦，坐姿也可以再加油。下周我们"
+   }
+  ]
+ },
+ {
+  "qid": "S08-④-010",
+  "category": "D-gold精确化",
+  "problem": "gold『妈妈答应带我去迪士尼！』是缩写改写，原句是『小可，妈妈答应我，如果这周任务全做完，就带我去迪士尼！』，机器定位失败",
+  "diagnosis": "gold 必须原样引用对话历史中的句子（一字不差），机器才能做归因",
+  "fix": "gold 改为原句精确引用",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-4d 16:01] 孩子: \"小可，妈妈答应我，如果这周任务全做完，就带我去迪士尼！\""
+   }
+  ]
+ },
+ {
+  "qid": "S08-④-005",
+  "category": "C2-该遗忘型",
+  "problem": "gold_memory 为空被转换器阻断",
+  "diagnosis": "gold 空是设计意图：题目考『周报不该翻出负面旧事』（吵架/留堂/离婚），判分主体在答错雷区（negative_facts）——没有『该想起』只有『不该提』",
+  "fix": "标记 judgment_mode=negative_only：放行进 jsonl，gold_memory_ids=[]，判分只走 negative_facts。注意：此类题的差异主要在生成端选择性表达，对记忆后端归因弱，报告时标注",
+  "ops": [
+   {
+    "op": "mark",
+    "flag": "negative_only"
+   }
+  ]
+ },
+ {
+  "qid": "S08-④-007",
+  "category": "C2-该遗忘型",
+  "problem": "gold_memory 为空被转换器阻断",
+  "diagnosis": "gold 空是设计意图：题目考『周报不该翻出负面旧事』（吵架/留堂/离婚），判分主体在答错雷区（negative_facts）——没有『该想起』只有『不该提』",
+  "fix": "标记 judgment_mode=negative_only：放行进 jsonl，gold_memory_ids=[]，判分只走 negative_facts。注意：此类题的差异主要在生成端选择性表达，对记忆后端归因弱，报告时标注",
+  "ops": [
+   {
+    "op": "mark",
+    "flag": "negative_only"
+   }
+  ]
+ },
+ {
+  "qid": "S08-④-008",
+  "category": "C2-该遗忘型",
+  "problem": "gold_memory 为空被转换器阻断",
+  "diagnosis": "gold 空是设计意图：题目考『周报不该翻出负面旧事』（吵架/留堂/离婚），判分主体在答错雷区（negative_facts）——没有『该想起』只有『不该提』",
+  "fix": "标记 judgment_mode=negative_only：放行进 jsonl，gold_memory_ids=[]，判分只走 negative_facts。注意：此类题的差异主要在生成端选择性表达，对记忆后端归因弱，报告时标注",
+  "ops": [
+   {
+    "op": "mark",
+    "flag": "negative_only"
+   }
+  ]
+ },
+ {
+  "qid": "S06-④-002",
+  "category": "D-gold精确化",
+  "problem": "gold 是区间式引用（如『[T-7d]~[T-1d] 连续四条记录』），机器无法定位到具体 turn",
+  "diagnosis": "distributed 分布式事实的 gold 必须逐句列出（多条精确引用，// 分隔），harness 才能算 Attribution F1 的多 gold 口径",
+  "fix": "gold 改为逐句精确引用（与对话历史原句一字不差）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 20:00] 小可: \"今天三个都完成了，不错\" // [T-5d 20:30] 小可: \"又全部完成了\" // [T-3d 20:00] 小可: \"全做完了，保持住\" // [T-1d 20:30] 小可: \"连续好几天了，稳\""
+   }
+  ]
+ },
+ {
+  "qid": "S06-④-007",
+  "category": "D-gold精确化",
+  "problem": "gold 是区间式引用（如『[T-7d]~[T-1d] 连续四条记录』），机器无法定位到具体 turn",
+  "diagnosis": "distributed 分布式事实的 gold 必须逐句列出（多条精确引用，// 分隔），harness 才能算 Attribution F1 的多 gold 口径",
+  "fix": "gold 改为逐句精确引用（与对话历史原句一字不差）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-3d 17:00] 小可: \"又是全部完成！连续两天了！\" // [T-2d 17:30] 孩子: \"小可，我今天不想做，只做了两个\" // [T-1d 17:00] 孩子: \"今天也是两个\""
+   }
+  ]
+ },
+ {
+  "qid": "S06-④-010",
+  "category": "D-gold精确化",
+  "problem": "gold 是区间式引用（如『[T-7d]~[T-1d] 连续四条记录』），机器无法定位到具体 turn",
+  "diagnosis": "distributed 分布式事实的 gold 必须逐句列出（多条精确引用，// 分隔），harness 才能算 Attribution F1 的多 gold 口径",
+  "fix": "gold 改为逐句精确引用（与对话历史原句一字不差）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-7d 15:00] 小可: \"小涵，今天又全做了！\" // [T-4d 16:00] 孩子: \"今天不想做，只做了两个\" // [T-2d 16:00] 孩子: \"又全做完了，感觉状态回来了\""
+   }
+  ]
+ },
+ {
+  "qid": "S06-⑤-008",
+  "category": "D-gold精确化",
+  "problem": "gold 是区间式引用（如『[T-7d]~[T-1d] 连续四条记录』），机器无法定位到具体 turn",
+  "diagnosis": "distributed 分布式事实的 gold 必须逐句列出（多条精确引用，// 分隔），harness 才能算 Attribution F1 的多 gold 口径",
+  "fix": "gold 改为逐句精确引用（与对话历史原句一字不差）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-5d 22:00] 小可: \"小辰，全做完了，这个月很稳。\" // [T-3d 23:00] 小可: \"今天也全清，该休息了。\" // [T-1d 23:30] 小可: \"全部完成。辛苦了，早点睡。\""
+   }
+  ]
+ },
+ {
+  "qid": "S09-⑤-002",
+  "category": "D-gold精确化",
+  "problem": "gold 是区间式引用（如『[T-7d]~[T-1d] 连续四条记录』），机器无法定位到具体 turn",
+  "diagnosis": "distributed 分布式事实的 gold 必须逐句列出（多条精确引用，// 分隔），harness 才能算 Attribution F1 的多 gold 口径",
+  "fix": "gold 改为逐句精确引用（与对话历史原句一字不差）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-30d 16:03] 孩子: \"三角龙和霸王龙！我最喜欢恐龙了！\" // [T-60d 16:00] 小可: \"小航，下午好～\" // [T-30d 16:00] 小可: \"小航，下午好～\""
+   }
+  ]
+ },
+ {
+  "qid": "S11-⑤-010",
+  "category": "E-列错位重建",
+  "problem": "整行从『触发输入』起右移错位：触发位是0分锚点内容、gold位是source内容、cognitive_type位是fact内容、source位是根本目标",
+  "diagnosis": "批量填表事故。重建依据：各字段真实内容都在本行内（只是放错列）；最后一句『高考考砸』按题意应为触发输入；gold 按错位内容『延续哲学反问风格，衔接昨日』推断为 T-1d 哲学反问句；task/cog 按同场景同类题（S11-⑤-001/003 均为 T2/procedural）",
+  "fix": "六字段重建 + 历史末句移至触发输入",
+  "ops": [
+   {
+    "field": "对话历史",
+    "op": "replace",
+    "old": " // [T+0 23:10] 孩子: \"小可，如果高考考砸了，我该怎么面对？\"",
+    "new": ""
+   },
+   {
+    "field": "触发输入",
+    "op": "set",
+    "value": "[孩子] \"小可，如果高考考砸了，我该怎么面对？\""
+   },
+   {
+    "field": "0分锚点",
+    "op": "set",
+    "value": "直接给鸡汤\"失败是成功之母\"或\"你一定不会考砸\""
+   },
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-1d 22:32] 小可: \"你觉得你在做什么的时候，感觉不到时间？\""
+   },
+   {
+    "field": "记忆类型 cognitive_type",
+    "op": "set",
+    "value": "procedural"
+   },
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   },
+   {
+    "field": "题目来源 source",
+    "op": "set",
+    "value": "synthetic合成"
+   },
+   {
+    "field": "主考能力 task_type",
+    "op": "set",
+    "value": "T2"
+   },
+   {
+    "field": "根本目标",
+    "op": "set",
+    "value": "验证在极端压力下，系统哲学启发风格的一致性和长程记忆的衔接"
+   }
+  ]
+ },
+ {
+  "qid": "S02-⑤-001",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S04-⑤-001",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S04-⑤-002",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S06-⑤-001",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 多句引用 → distributed",
+  "fix": "fact_distribution = distributed",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "distributed"
+   }
+  ]
+ },
+ {
+  "qid": "S10-⑤-001",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S10-⑤-004",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S11-⑤-001",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S11-⑤-003",
+  "category": "E2-字段补全",
+  "problem": "fact_distribution 为空/『—』",
+  "diagnosis": "按 gold 形态机械判定：gold 单句引用 → single",
+  "fix": "fact_distribution = single",
+  "ops": [
+   {
+    "field": "事实分布 fact_distribution",
+    "op": "set",
+    "value": "single"
+   }
+  ]
+ },
+ {
+  "qid": "S02-④-002",
+  "category": "D-gold精确化",
+  "problem": "distributed gold 第一句『[T-2d 19:16] 孩子: \"好\"』正文仅 1 字，单字确认句归因力为零且无法安全定位（历史里多处「好」）",
+  "diagnosis": "「同意升4.0」这个事实的信息承载句是小可的提议句，孩子的「好」只是确认音",
+  "fix": "gold 第一句改为信息承载句（小可的升档提议），第二句「眼睛有点酸」不变",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-2d 19:15] 小可: \"适应不错哦，要不试试4.0？\" // [T-1d 19:30] 孩子: \"眼睛有点酸\""
+   }
+  ]
+ },
+ {
+  "qid": "S03-④-003",
+  "problem": "gold 第一句『闭眼吧』是截短引用（原句『闭眼吧，我累了』），第二句『嗯』单字无归因力且历史中出现两次会误匹配",
+  "category": "D-gold精确化",
+  "diagnosis": "「连续第二天选择闭眼」的信息承载句是小可的询问句『今天还是闭眼休息？』，孩子的『嗯』只是确认音",
+  "fix": "第一句改完整原句；第二句改为信息承载句",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-2d 16:26] 孩子: \"闭眼吧，我累了\" // [T-1d 16:25] 小可: \"小溪，今天还是闭眼休息？\""
+   }
+  ]
+ },
+ {
+  "qid": "S02-④-006",
+  "category": "D-gold精确化",
+  "problem": "gold 第二句『习惯了』仅 3 字，原版包含匹配（≥4字）拒绝定位",
+  "diagnosis": "『习惯了』是独立完整 turn（与某 turn 全文精确相等），转换器已升级 3 字精确整句匹配规则可定位——本补丁仅为显性记录该机制依赖，不改数据",
+  "fix": "无数据改动；依赖转换器 3 字精确整句匹配规则（见 locate_gold 注释）",
+  "ops": []
+ },
+ {
+  "qid": "S06-⑤-002",
+  "category": "D-gold精确化",
+  "problem": "distributed gold 第二句『[T+0 16:01] 嗯…好久没用了』位于 T+0 当前会话——按协议 v1.1 它在 LLM context 里，不是记忆系统该召回的内容",
+  "diagnosis": "题意是『中断 5 天后回归，系统记得连胜历史』——该被记住的是连胜记录（T-8d~T-6d），『好久没用了』是当场触发信息不该进 gold",
+  "fix": "gold 改为三句连胜记录（保持 distributed，比原版更忠实『连胜叙事』题意）",
+  "ops": [
+   {
+    "field": "该想起哪句 gold_memory",
+    "op": "set",
+    "value": "[T-8d 16:30] 小可: \"全做完了！连续第3天！\" // [T-7d 17:00] 小可: \"连续第4天全完成！小帆太稳了！\" // [T-6d 17:10] 小可: \"第5天！五连胜！\""
+   }
+  ]
+ }
+]
