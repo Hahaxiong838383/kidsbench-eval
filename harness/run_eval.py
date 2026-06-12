@@ -270,6 +270,37 @@ def make_reme_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     })
 
 
+
+
+def make_letta_adapter(preset: LLMPreset) -> MemoryAdapter | None:
+    """如果 .venv-letta 可用 + letta server 在跑就返 LettaAdapter。
+
+    需先跑 scripts/setup_letta_server.sh 起 server（pg0 + deepseek provider）。
+    embedding 经本地 shim 对齐 bge-small-zh。
+    """
+    try:
+        import letta_client  # noqa: F401
+    except (ImportError, ModuleNotFoundError):
+        return None
+    import urllib.request
+    base = os.environ.get("LETTA_SERVER_URL", "http://127.0.0.1:18283")
+    try:
+        with urllib.request.urlopen(f"{base}/v1/health/", timeout=3) as r:
+            if r.status != 200:
+                return None
+    except Exception:
+        print("[harness] letta server 未就绪（跑 scripts/setup_letta_server.sh），跳过", flush=True)
+        return None
+    shim_url = _ensure_embedding_shim()
+    from kidsbench.adapters.letta_adapter import LettaAdapter
+    return LettaAdapter(config={
+        "base_url": base,
+        "model": "openai-proxy/deepseek-v4-flash",
+        "embedding": {"endpoint": shim_url, "model": preset.embedding.model,
+                      "dim": preset.embedding.dim},
+    })
+
+
 def make_graphiti_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     """如果 .venv-graphiti 可用 + FalkorDB 隧道在，返回 GraphitiAdapter；否则 None。
 
@@ -1043,6 +1074,12 @@ def main() -> int:
         help="断点续跑：读已有 results.jsonl，跳过已完成的 (adapter,qid)，追加写（防中断从头跑）。",
     )
     parser.add_argument(
+        "--include-letta",
+        action="store_true",
+        help="是否跑 LettaAdapter（需 .venv-letta + letta server 在跑，"
+        "先 bash scripts/setup_letta_server.sh）",
+    )
+    parser.add_argument(
         "--include-reme",
         action="store_true",
         help="是否跑 RemeAdapter（需 .venv-reme：pip install reme-ai agentscope==1.0.20；"
@@ -1112,6 +1149,12 @@ def main() -> int:
             print("[harness] memoryos 不可用（未装 memoryos package），跳过", flush=True)
         else:
             adapters["memoryos"] = memoryos
+    if args.include_letta:
+        letta_a = make_letta_adapter(preset)
+        if letta_a is None:
+            print("[harness] letta 不可用（无 server/未装），跳过", flush=True)
+        else:
+            adapters["letta"] = letta_a
     if args.include_reme:
         reme_a = make_reme_adapter(preset)
         if reme_a is None:

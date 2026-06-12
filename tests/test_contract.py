@@ -11,6 +11,7 @@ from collections.abc import Callable
 import pytest
 
 from kidsbench.adapters import (
+    LettaAdapter,
     RemeAdapter,
     FullHistoryAdapter,
     GraphitiAdapter,
@@ -341,6 +342,52 @@ class _RemeContractClient:
 def make_reme() -> RemeAdapter:
     return RemeAdapter(client=_RemeContractClient())
 
+
+
+class _LettaStore:
+    """共享 archival 存储（agent_id → passages）。"""
+    def __init__(self):
+        self.data: dict[str, list[dict]] = {}
+        self.counter = 0
+
+
+class _LettaPassages:
+    def __init__(self, store): self._s = store
+    def create(self, agent_id=None, text="", tags=None, **kw):
+        self._s.counter += 1
+        node = {"id": f"passage-{self._s.counter:03d}", "content": text, "tags": list(tags or [])}
+        self._s.data.setdefault(agent_id, []).append(node)
+        return type("P", (), node)()
+    def search(self, agent_id=None, query="", top_k=5, **kw):
+        nodes = self._s.data.get(agent_id, [])[:top_k]
+        return type("Resp", (), {"results": [type("Result", (), n)() for n in nodes], "count": len(nodes)})()
+    def list(self, agent_id=None, **kw):
+        return [type("P", (), n)() for n in self._s.data.get(agent_id, [])]
+
+
+class _LettaAgents:
+    def __init__(self, store):
+        self._s = store
+        self.passages = _LettaPassages(store)
+    def create(self, model=None, embedding_config=None, memory_blocks=None, **kw):
+        self._s.counter += 1
+        aid = f"agent-{self._s.counter:03d}"
+        self._s.data[aid] = []
+        return type("Agent", (), {"id": aid})()
+    def delete(self, agent_id):
+        self._s.data.pop(agent_id, None)
+
+
+class _LettaContractClient:
+    """契约测试 Mock Letta（镜像 letta_client 0.16.8 archival，tags native 溯源）。"""
+    def __init__(self):
+        store = _LettaStore()
+        self.agents = _LettaAgents(store)
+
+
+def make_letta() -> LettaAdapter:
+    return LettaAdapter(client=_LettaContractClient())
+
 ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "nomemory": make_nomemory,
     "fullhistory": make_fullhistory,
@@ -351,6 +398,7 @@ ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "hindsight-recall": make_hindsight_recall,
     "hindsight-reflect": make_hindsight_reflect,
     "reme": make_reme,
+    "letta": make_letta,
 }
 
 

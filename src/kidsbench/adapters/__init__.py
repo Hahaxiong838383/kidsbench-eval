@@ -18,6 +18,7 @@ from .mem0_adapter import Mem0Adapter
 from .memoryos_adapter import MemoryOSAdapter
 from .nomemory import NoMemoryAdapter
 from .oracle import OracleAdapter
+from .letta_adapter import LettaAdapter
 from .reme_adapter import RemeAdapter
 
 __all__ = [
@@ -25,6 +26,7 @@ __all__ = [
     "FullHistoryAdapter",
     "NoMemoryAdapter",
     "OracleAdapter",
+    "LettaAdapter",
     "RemeAdapter",
     # Wave 1 第三方（按需 extras 安装）
     "Mem0Adapter",
