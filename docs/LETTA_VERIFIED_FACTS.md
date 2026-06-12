@@ -44,3 +44,18 @@
   带 turn_id metadata；read=archival search 拿 passage（溯源 native）；
   clear=删 agent/清 archival；考虑用统一回答模型而非 Letta agent 回答
 - 范式覆盖地图更新：Letta 主场 = T1/T2（自管理记忆的跨会话保持）
+
+## Archival 直插路径实测（Phase 0 延伸，2026-06-12）
+
+绕开 agent 自管理记忆的不确定性，走 archival passage 直插——评测更可控：
+- **embedding**：`embedding_config` 直传指向本地 shim（与 ReMe 同款），
+  `{embedding_endpoint_type:openai, embedding_endpoint:shim/v1, embedding_model:bge-small-zh, embedding_dim:512}`——绕开 provider 注册，避开 deepseek 无 embedding endpoint 的 404
+- **write**：`agents.passages.create(agent_id, text, tags=[turn_id])` ✅
+- **溯源 native**：passage 的 `tags` 字段回传（search 返回 `['t_001']`）——
+  turn_id 用 tags 存，原生精确 1:1，比 ReMe 的 message_time 反查更稳
+- **read**：`agents.passages.search(query)` 语义检索命中（返回 PassageSearchResponse，
+  text 走 `passages.list` 拿全量 + tags 对齐）
+- **clear**：删 agent（organization 级隔离）或清 passages
+- **回答端**：拿 passage 给统一回答模型，不用 Letta agent 回答（保评测协议一致）
+
+→ Phase 2 LettaAdapter 技术路径全部验证可行，溯源是六系统里最干净的（native tags）
