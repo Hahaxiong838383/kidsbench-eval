@@ -1,0 +1,61 @@
+{
+ "snapshot_id": "20260612_0928_v01_smoke_a2",
+ "label": "smoke调试②：+prompt双模式",
+ "created_at": "2026-06-12 09:28",
+ "prefix": "v01_smoke_a2",
+ "n_questions": 12,
+ "notes": "12题子集。事件触发题换『小可主动陪伴』prompt，Oracle 0.33",
+ "groups": [
+  "v01_smoke_a2"
+ ],
+ "board": [
+  {
+   "adapter": "oracle",
+   "plain": "最小充分信息参照：只喂标准答案那句。真实系统超过它说明『多召回的上下文也有价值』",
+   "n": 12,
+   "avg_score": 0.333,
+   "correct": 4,
+   "wrong": 1,
+   "evasive": 7,
+   "error": 0,
+   "avg_recall": 0.92,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  },
+  {
+   "adapter": "nomemory",
+   "plain": "地板参照：完全没有记忆。它答对的题=泄露或可猜中，是题目的问题",
+   "n": 12,
+   "avg_score": 0.083,
+   "correct": 1,
+   "wrong": 1,
+   "evasive": 10,
+   "error": 0,
+   "avg_recall": 0.0,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  },
+  {
+   "adapter": "fullhistory",
+   "plain": "全文上限参照：把全部历史原文塞给模型，贵且不现实，但能测出『题目本身可不可答』",
+   "n": 12,
+   "avg_score": 0.083,
+   "correct": 1,
+   "wrong": 1,
+   "evasive": 10,
+   "error": 0,
+   "avg_recall": 0.92,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  }
+ ],
+ "findings": [
+  {
+   "title": "区分度：最强系统（oracle 0.333）与无记忆地板（0.083）拉开 0.25 分",
+   "why": "地板与顶部的差值就是『记忆系统的价值空间』。差值越大，题库越能区分系统好坏。同时整体天花板仍偏低（大量回答未完全命中多条命题）——回答字数限制与多命题全蕴含口径是当前主要压制因素。"
+  }
+ ]
+}

@@ -318,3 +318,50 @@ def leaderboard(prefix: str = "v01_full") -> dict:
 
     questions = _load_jsonl(_bank_paths()["jsonl"])
     return build_leaderboard(RUNS_PATH, questions, prefix)
+
+
+@router.get("/leaderboard/history")
+def leaderboard_history() -> dict:
+    """评测历史：全部快照列表 + 系统×快照对比矩阵（含最近一次升降）。"""
+    from .config import RUNS_PATH
+    from .qb_report import history_matrix, load_snapshots
+
+    snaps = load_snapshots(RUNS_PATH)
+    return {
+        "total": len(snaps),
+        "snapshots": [
+            {k: s[k] for k in ("snapshot_id", "label", "created_at",
+                               "n_questions", "notes", "prefix")}
+            for s in snaps
+        ],
+        "matrix": history_matrix(snaps),
+    }
+
+
+@router.get("/leaderboard/history/{snapshot_id}")
+def leaderboard_snapshot(snapshot_id: str) -> dict:
+    """单个历史快照详情（完整榜单+当时的发现）。"""
+    from .config import RUNS_PATH
+    from .qb_report import load_snapshots
+
+    snap = next((s for s in load_snapshots(RUNS_PATH)
+                 if s["snapshot_id"] == snapshot_id), None)
+    if snap is None:
+        raise HTTPException(404, f"快照 {snapshot_id} 不存在")
+    return snap
+
+
+@router.post("/leaderboard/snapshot")
+def create_snapshot(prefix: str = "v01_full", label: str = "",
+                    notes: str = "") -> dict:
+    """归档当前聚合榜单为历史快照（每轮评测跑完调用一次）。"""
+    from .config import RUNS_PATH
+    from .qb_report import save_snapshot
+
+    questions = _load_jsonl(_bank_paths()["jsonl"])
+    try:
+        snap = save_snapshot(RUNS_PATH, questions, prefix,
+                             label or f"评测批次 {prefix}", notes)
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    return {"created": snap["snapshot_id"], "label": snap["label"]}

@@ -216,6 +216,26 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
         for fi in lb["findings"]:
             add(f"- **{fi['title']}**\n  {fi['why']}")
 
+    # ---- 历史对比
+    snaps = load_snapshots(runs_path)
+    if snaps:
+        mx = history_matrix(snaps)
+        add("\n## 评测历史对比（快照矩阵）")
+        add("\n> 每跑完一轮评测归档一份快照。**题数不同的快照不可直接比分**"
+            "（12 题调试轮 vs 149 题全量是不同口径）。\n")
+        header = "| 系统 | " + " | ".join(
+            f"{c['created_at'][5:]}（{c['n_questions']}题）" for c in mx["columns"]) + " |"
+        add(header)
+        add("|" + "---|" * (len(mx["columns"]) + 1))
+        for a in mx["adapters"]:
+            vals = " | ".join("—" if v is None else f"{v:.3f}"
+                              for v in mx["cells"][a])
+            add(f"| {a} | {vals} |")
+        add("\n各快照环境备注：")
+        for s in reversed(snaps):
+            add(f"- **{s['created_at']}** · {s['label']} · {s['n_questions']} 题"
+                + (f"　｜　{s['notes']}" if s.get("notes") else ""))
+
     # ---- 三、评测运行诊断
     add("\n## 三、本次评测运行诊断")
     if not rows:
@@ -413,3 +433,93 @@ def _auto_findings(board: list[dict], rows_by_adapter: dict,
                    "按编号匹配的召回率算法对它不适用。看它的平均分即可。",
         })
     return findings
+
+
+# ---------------------------------------------------------------- 历史快照
+
+def snapshot_dir(runs_path: Path) -> Path:
+    return runs_path / "history"
+
+
+def save_snapshot(runs_path: Path, questions: list[dict], prefix: str,
+                  label: str, notes: str = "") -> dict:
+    """把当前聚合榜单归档为历史快照。
+
+    为什么用显式快照而不是每次现算：①跑批目录会清理/覆盖，快照永久留存；
+    ②快照带人话 label 和环境备注（如『prompt 双模式上线后首跑』），
+    对比时知道每次的口径差异；③不同批次题数不同（12 题 smoke vs 149 全量），
+    快照记录口径，前端对比时标注防误比。
+    """
+    lb = build_leaderboard(runs_path, questions, prefix)
+    if not lb["board"]:
+        raise ValueError(f"前缀 {prefix!r} 下没有可聚合的 run 数据")
+    n_q = max(b["n"] for b in lb["board"])
+    sid = time.strftime("%Y%m%d_%H%M") + "_" + prefix.replace("/", "_")
+    snap = {
+        "snapshot_id": sid,
+        "label": label,
+        "created_at": time.strftime("%Y-%m-%d %H:%M"),
+        "prefix": prefix,
+        "n_questions": n_q,
+        "notes": notes,
+        "groups": lb["groups"],
+        "board": lb["board"],
+        "findings": lb["findings"],
+    }
+    d = snapshot_dir(runs_path)
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{sid}.json").write_text(
+        json.dumps(snap, ensure_ascii=False, indent=1), encoding="utf-8")
+    return snap
+
+
+def load_snapshots(runs_path: Path) -> list[dict]:
+    """按时间倒序加载全部历史快照。"""
+    d = snapshot_dir(runs_path)
+    if not d.exists():
+        return []
+    snaps = [json.loads(f.read_text(encoding="utf-8"))
+             for f in sorted(d.glob("*.json"), reverse=True)]
+    return snaps
+
+
+def history_matrix(snaps: list[dict]) -> dict:
+    """历史对比矩阵：行=系统、列=快照（时间正序）、值=平均分。
+
+    附带最近两次同口径快照的逐系统变化（delta），便于一眼看升降。
+    """
+    snaps_asc = list(reversed(snaps))
+    adapters: list[str] = []
+    for s in snaps_asc:
+        for b in s["board"]:
+            if b["adapter"] not in adapters:
+                adapters.append(b["adapter"])
+    columns = [{
+        "snapshot_id": s["snapshot_id"],
+        "label": s["label"],
+        "created_at": s["created_at"],
+        "n_questions": s["n_questions"],
+    } for s in snaps_asc]
+    cells: dict[str, list[float | None]] = {}
+    for a in adapters:
+        cells[a] = []
+        for s in snaps_asc:
+            row = next((b for b in s["board"] if b["adapter"] == a), None)
+            cells[a].append(row["avg_score"] if row else None)
+    # delta：最近两次同题数口径的快照
+    delta = {}
+    if len(snaps_asc) >= 2:
+        last = snaps_asc[-1]
+        prev = next((s for s in reversed(snaps_asc[:-1])
+                     if s["n_questions"] == last["n_questions"]), None)
+        if prev:
+            for a in adapters:
+                lv = next((b["avg_score"] for b in last["board"]
+                           if b["adapter"] == a), None)
+                pv = next((b["avg_score"] for b in prev["board"]
+                           if b["adapter"] == a), None)
+                if lv is not None and pv is not None:
+                    delta[a] = round(lv - pv, 3)
+            delta["_vs"] = prev["snapshot_id"]
+    return {"adapters": adapters, "columns": columns, "cells": cells,
+            "delta": delta}

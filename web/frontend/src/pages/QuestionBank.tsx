@@ -47,6 +47,22 @@ type Leaderboard = {
   board: BoardRow[];
   findings: { title: string; why: string }[];
 };
+type HistoryCol = {
+  snapshot_id: string;
+  label: string;
+  created_at: string;
+  n_questions: number;
+};
+type History = {
+  total: number;
+  snapshots: { snapshot_id: string; label: string; created_at: string; n_questions: number; notes: string }[];
+  matrix: {
+    adapters: string[];
+    columns: HistoryCol[];
+    cells: Record<string, (number | null)[]>;
+    delta: Record<string, number | string>;
+  };
+};
 type UploadReport = {
   uploaded_at: string;
   filename: string;
@@ -75,6 +91,7 @@ export default function QuestionBank() {
   const [openFix, setOpenFix] = useState<string | null>(null);
   const [report, setReport] = useState<UploadReport | null>(null);
   const [lb, setLb] = useState<Leaderboard | null>(null);
+  const [hist, setHist] = useState<History | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -82,6 +99,7 @@ export default function QuestionBank() {
   useEffect(() => {
     getJSON<Overview>("/api/questionbank").then(setOv);
     getJSON<Leaderboard>("/api/questionbank/leaderboard").then(setLb);
+    getJSON<History>("/api/questionbank/leaderboard/history").then(setHist);
     getJSON<{ note: string; items: FixItem[] }>("/api/questionbank/fixes").then(
       (d) => {
         setFixes(d.items);
@@ -271,6 +289,72 @@ export default function QuestionBank() {
               </div>
             ))}
           </div>
+
+          {hist && hist.total > 0 && (
+            <>
+              <h3 className="text-base font-semibold pt-2">历史对比（每次评测的快照）</h3>
+              <p className="text-xs text-slate-500">
+                每跑完一轮评测归档一份快照。列头括号里是题数——
+                <b>题数不同的快照不可直接比分</b>（12 题调试轮 vs 149 题全量是不同口径）。
+                Δ 列是最近两次同口径快照的升降。
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b border-slate-200">
+                      <th className="py-1.5 pr-3">系统</th>
+                      {hist.matrix.columns.map((c) => (
+                        <th key={c.snapshot_id} className="py-1.5 pr-3 whitespace-nowrap" title={c.label}>
+                          {c.created_at.slice(5, 16)}
+                          <span className="text-slate-400">（{c.n_questions}题）</span>
+                        </th>
+                      ))}
+                      {Object.keys(hist.matrix.delta).length > 0 && (
+                        <th className="py-1.5">Δ 最近</th>
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hist.matrix.adapters.map((a) => {
+                      const d = hist.matrix.delta[a];
+                      return (
+                        <tr key={a} className="border-b border-slate-100">
+                          <td className="py-1.5 pr-3 font-mono whitespace-nowrap">{a}</td>
+                          {hist.matrix.cells[a].map((v, i) => (
+                            <td key={i} className="py-1.5 pr-3">
+                              {v === null ? <span className="text-slate-300">—</span> : v.toFixed(3)}
+                            </td>
+                          ))}
+                          {Object.keys(hist.matrix.delta).length > 0 && (
+                            <td className="py-1.5 text-xs">
+                              {typeof d === "number" ? (
+                                <span className={d > 0 ? "text-emerald-600" : d < 0 ? "text-red-500" : "text-slate-400"}>
+                                  {d > 0 ? "↑" : d < 0 ? "↓" : "="}{Math.abs(d).toFixed(3)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300">—</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <details className="text-xs text-slate-500">
+                <summary className="cursor-pointer">各快照说明（点开看每次评测的环境备注）</summary>
+                <ul className="mt-1 space-y-1 list-disc pl-5">
+                  {hist.snapshots.map((s) => (
+                    <li key={s.snapshot_id}>
+                      <b>{s.created_at}</b> · {s.label} · {s.n_questions} 题
+                      {s.notes && <span className="text-slate-400">　{s.notes}</span>}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            </>
+          )}
         </section>
       )}
 

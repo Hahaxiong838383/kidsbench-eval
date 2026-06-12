@@ -214,3 +214,16 @@ def test_questionbank_leaderboard(client):
         # 榜单按平均分降序
         scores = [b["avg_score"] for b in body["board"]]
         assert scores == sorted(scores, reverse=True)
+
+
+def test_leaderboard_history(client):
+    response = client.get("/api/questionbank/leaderboard/history")
+    assert response.status_code == 200
+    body = response.json()
+    assert "snapshots" in body and "matrix" in body
+    if body["total"] > 0:
+        m = body["matrix"]
+        assert m["adapters"] and m["columns"]
+        # 每个系统的 cells 与列数对齐
+        for a in m["adapters"]:
+            assert len(m["cells"][a]) == len(m["columns"])

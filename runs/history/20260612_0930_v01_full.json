@@ -1,0 +1,150 @@
+{
+ "snapshot_id": "20260612_0930_v01_full",
+ "label": "首次全量摸底：149题×7系统",
+ "created_at": "2026-06-12 09:30",
+ "prefix": "v01_full",
+ "n_questions": 149,
+ "notes": "deepseek-v4-flash 答题 + qwen 判分。全程零错误。graphiti 修两雷（qid圈数字/reasoning_effort）",
+ "groups": [
+  "v01_full_graphiti",
+  "v01_full_hindsight",
+  "v01_full_mem0",
+  "v01_full_memoryos"
+ ],
+ "board": [
+  {
+   "adapter": "mem0",
+   "plain": "LLM 抽取式：写入时用大模型把对话提炼成事实再存",
+   "n": 149,
+   "avg_score": 0.453,
+   "correct": 34,
+   "wrong": 12,
+   "evasive": 103,
+   "error": 0,
+   "avg_recall": 0.68,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": "未上报（adapter 计量待补）"
+  },
+  {
+   "adapter": "memoryos",
+   "plain": "分层存储式：短期/中期/长期三层记忆架构，按热度晋升",
+   "n": 149,
+   "avg_score": 0.445,
+   "correct": 36,
+   "wrong": 9,
+   "evasive": 104,
+   "error": 0,
+   "avg_recall": 0.98,
+   "write_tokens": 3028,
+   "read_tokens": 27151,
+   "token_note": ""
+  },
+  {
+   "adapter": "oracle",
+   "plain": "最小充分信息参照：只喂标准答案那句。真实系统超过它说明『多召回的上下文也有价值』",
+   "n": 149,
+   "avg_score": 0.43,
+   "correct": 36,
+   "wrong": 9,
+   "evasive": 104,
+   "error": 0,
+   "avg_recall": 0.98,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  },
+  {
+   "adapter": "hindsight-recall",
+   "plain": "四路检索·早绑定：写入时深加工，读取纯检索零大模型调用",
+   "n": 149,
+   "avg_score": 0.428,
+   "correct": 37,
+   "wrong": 11,
+   "evasive": 101,
+   "error": 0,
+   "avg_recall": 0.73,
+   "write_tokens": 2547031,
+   "read_tokens": 0,
+   "token_note": ""
+  },
+  {
+   "adapter": "fullhistory",
+   "plain": "全文上限参照：把全部历史原文塞给模型，贵且不现实，但能测出『题目本身可不可答』",
+   "n": 149,
+   "avg_score": 0.407,
+   "correct": 31,
+   "wrong": 9,
+   "evasive": 109,
+   "error": 0,
+   "avg_recall": 0.98,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  },
+  {
+   "adapter": "hindsight-reflect",
+   "plain": "四路检索·晚绑定：读取时再用大模型把记忆合成成答案素材，成本最高",
+   "n": 149,
+   "avg_score": 0.39,
+   "correct": 31,
+   "wrong": 9,
+   "evasive": 109,
+   "error": 0,
+   "avg_recall": 0.0,
+   "write_tokens": 2568980,
+   "read_tokens": 2604731,
+   "token_note": ""
+  },
+  {
+   "adapter": "graphiti",
+   "plain": "知识图谱式：把对话抽成实体关系图，强项是时序推理（本批 T3 题极少，发挥不出）",
+   "n": 149,
+   "avg_score": 0.366,
+   "correct": 25,
+   "wrong": 12,
+   "evasive": 112,
+   "error": 0,
+   "avg_recall": 0.58,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": "未上报（adapter 计量待补）"
+  },
+  {
+   "adapter": "nomemory",
+   "plain": "地板参照：完全没有记忆。它答对的题=泄露或可猜中，是题目的问题",
+   "n": 149,
+   "avg_score": 0.206,
+   "correct": 8,
+   "wrong": 14,
+   "evasive": 127,
+   "error": 0,
+   "avg_recall": 0.0,
+   "write_tokens": 0,
+   "read_tokens": 0,
+   "token_note": ""
+  }
+ ],
+ "findings": [
+  {
+   "title": "mem0、memoryos 的平均分超过了 Oracle 参照",
+   "why": "Oracle 只喂『标准答案那一句』。真实系统多召回的周边上下文反而帮模型把回答组织得更好——Oracle 是『最小充分信息』参照，不是绝对上限，对比时要按这个含义解读。"
+  },
+  {
+   "title": "晚绑定（reflect）性价比显著低于早绑定（recall）",
+   "why": "reflect 读取时额外消耗 2,604,731 tokens 做大模型合成，平均分（0.39）反而低于零读取成本的 recall（0.428）。本批题以基础召回/一致性为主，读时深加工没有用武之地——该结论是方向性趋势，时序/长程压力题（T3/T5）补齐后需复测。"
+  },
+  {
+   "title": "知识图谱（graphiti）排名靠后，但本批题测不出它的强项",
+   "why": "graphiti 的优势是时序推理与矛盾更新，而本批题 T3 矛盾更新仅 2 题、T5 长程为 0——它的主场题型缺席。『这批题上弱』不等于『范式没价值』，补齐 T3/T5 题后必须复测再下结论。"
+  },
+  {
+   "title": "区分度：最强系统（mem0 0.453）与无记忆地板（0.206）拉开 0.247 分",
+   "why": "地板与顶部的差值就是『记忆系统的价值空间』。差值越大，题库越能区分系统好坏。同时整体天花板仍偏低（大量回答未完全命中多条命题）——回答字数限制与多命题全蕴含口径是当前主要压制因素。"
+  },
+  {
+   "title": "reflect 模式召回率显示 0 是统计口径问题，不是真没召回",
+   "why": "reflect 返回的是大模型合成后的文本，没有原始记录编号可溯源，按编号匹配的召回率算法对它不适用。看它的平均分即可。"
+  }
+ ]
+}
