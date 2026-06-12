@@ -444,11 +444,19 @@ PARADIGM_HOME_GROUND = [
      "home": ["T1_recall", "T2_consistency"],
      "why": "archival 是纯向量检索（无 reranker、无多轮），跨会话单事实召回/一致性"
             "保持是基本盘；与 memoryos 分层存储构成范式内对照（同范式交叉验证库代码 vs 范式）"},
-    {"adapter": "hipporag2", "paradigm": "图扩散检索（接入中）",
-     "home": ["T3_update", "多跳关联（题库暂无此题型）"],
-     "why": "海马体启发：检索时在知识图上做 PageRank 扩散——擅长链式想起"
-            "（恐龙→恐龙展→博物馆→上周末）。当前题库没有多跳关联题型，"
-            "接入后大概率重演 graphiti 的主场缺席，需补题后复测"},
+    {"adapter": "memobase", "paradigm": "用户画像中心（profile-centric）",
+     "home": ["T2_consistency", "T5_longterm"],
+     "why": "把对话异步提炼成『属性+事件』画像——主场是长程画像一致性"
+            "（兴趣演化/学习风格/情绪基线）。事件离散召回题它发挥不出，画像题才是主场"},
+    {"adapter": "memmachine", "paradigm": "真值保存（原文+句级索引）",
+     "home": ["T3_update", "T7_noise"],
+     "why": "原文不可变账本，写时不抽取不压缩——矛盾更新时提供无损上下文做时序自愈，"
+            "脏数据题不被 LLM 抽取丢字；与早绑定抽取系统构成抗幻觉对照"},
+    {"adapter": "cognee", "paradigm": "双库多跳（k-hop 邻域投影）",
+     "home": ["T4_interference", "多跳关联（题库暂无此题型）"],
+     "why": "实体图上做 k-hop 邻域投影——擅长链式想起（团子→宠物→取名→上周）。"
+            "多跳关联题型题库暂缺，补题后才发挥；当前与 graphiti 一样主场部分缺席，"
+            "T4 干扰召回是它现有题里的主场"},
 ]
 
 # 题型覆盖健康线：低于 minimum 即「不足」，为 0 即「缺席」

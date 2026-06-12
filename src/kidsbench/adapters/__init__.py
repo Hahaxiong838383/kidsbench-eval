@@ -11,14 +11,17 @@
 - MemoryOSAdapter   待补
 - HermesAdapter     自研系统，待对接
 """
+from .cognee_adapter import CogneeAdapter
 from .fullhistory import FullHistoryAdapter
 from .graphiti_adapter import GraphitiAdapter
 from .hindsight_adapter import HindsightAdapter
+from .letta_adapter import LettaAdapter
 from .mem0_adapter import Mem0Adapter
+from .memmachine_adapter import MemMachineAdapter
+from .memobase_adapter import MemobaseAdapter
 from .memoryos_adapter import MemoryOSAdapter
 from .nomemory import NoMemoryAdapter
 from .oracle import OracleAdapter
-from .letta_adapter import LettaAdapter
 from .reme_adapter import RemeAdapter
 
 __all__ = [
@@ -34,4 +37,8 @@ __all__ = [
     "GraphitiAdapter",
     # Wave 2（hindsight：recall/reflect 双模式范式旋钮）
     "HindsightAdapter",
+    # Wave 3（画像中心 / 真值保存 / 多跳邻域投影）
+    "MemobaseAdapter",
+    "MemMachineAdapter",
+    "CogneeAdapter",
 ]
