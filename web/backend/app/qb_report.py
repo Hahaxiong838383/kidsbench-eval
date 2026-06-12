@@ -464,6 +464,30 @@ def _auto_findings(board: list[dict], rows_by_adapter: dict,
             "why": "reflect 返回的是大模型合成后的文本，没有原始记录编号可溯源，"
                    "按编号匹配的召回率算法对它不适用。看它的平均分即可。",
         })
+
+    # 区分度窄 → 范式差距未拉开（数据驱动：补 T3/T5 重跑后区分度拉开此发现会自动变化）
+    _BASELINES = {"nomemory", "fullhistory", "oracle"}
+    real = [b for b in board if b["adapter"] not in _BASELINES]
+    if len(real) >= 4:
+        spread = round(real[0]["avg_score"] - real[-1]["avg_score"], 3)
+        scarce = [t for t in ("T3_update", "T4_interference", "T5_longterm",
+                              "T7_noise")
+                  if task_counts.get(t, 0) < 10]
+        if spread < 0.15:
+            scarce_zh = {"T3_update": "矛盾更新", "T4_interference": "干扰召回",
+                         "T5_longterm": "长程抗压", "T7_noise": "脏数据"}
+            scarce_names = "、".join(scarce_zh[t] for t in scarce) or "（暂无）"
+            findings.append({
+                "title": f"⚠️ 范式差距未拉开：{len(real)} 个真实记忆系统挤在 "
+                         f"{real[-1]['avg_score']}–{real[0]['avg_score']} 窄区间"
+                         f"（极差仅 {spread}）",
+                "why": "这不代表『几个系统都一样好』，而是当前题库还没出能区分它们的题。"
+                       f"原因：题型集中在 T1 跨会话召回 + T2 一致性，而能拉开范式差距的"
+                       f"题型（{scarce_names}）数量不足——graphiti 的时序、各家的抗膨胀、"
+                       f"多跳关联等强项都没有用武之地（见范式×题型覆盖地图）。"
+                       "下一步：题库侧补这些题型后重跑，区分度会拉开，本提示也会随之消失。"
+                       "在那之前，榜单名次差异小，不宜下『某系统更好』的强结论。",
+            })
     return findings
 
 
