@@ -21,7 +21,7 @@ def test_architecture_overview(client):
     response = client.get("/api/architecture")
     assert response.status_code == 200
     body = response.json()
-    assert set(body["adapters"].keys()) == {"mem0", "memoryos", "graphiti", "hindsight", "reme", "letta"}
+    assert set(body["adapters"].keys()) == {"mem0", "memoryos", "graphiti", "hindsight", "reme", "letta", "nomemory", "fullhistory", "oracle"}
     assert body["embedding_model"]["name"] == "BAAI/bge-small-zh-v1.5"
 
 
