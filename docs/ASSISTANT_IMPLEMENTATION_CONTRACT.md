@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS phones (
   phone TEXT PRIMARY KEY,            -- 11 位手机号，仅数字
   label TEXT DEFAULT '',             -- 姓名备注
   enabled INTEGER DEFAULT 1,
-  daily_quota_tokens INTEGER DEFAULT 200000,
+  daily_quota_tokens INTEGER DEFAULT 2000000,
   daily_upgrade_limit INTEGER DEFAULT 5,   -- 手动升级强模型次数/日
   created_at TEXT NOT NULL           -- ISO8601
 );
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS usage_log (
   qhash TEXT                          -- 问题 sha1 前 12 位（去重分析用，不存原文）
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
--- settings 初始键：assistant_enabled=1 / daily_global_budget_tokens=2000000
+-- settings 初始键：assistant_enabled=1 / daily_global_budget_tokens=20000000
 --   tier_simple_model=deepseek-v4-flash / tier_diagnosis_model=qwen3.6
 --   tier_upgrade_model=gateway-gpt-5.5
 ```

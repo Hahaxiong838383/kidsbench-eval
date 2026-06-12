@@ -82,7 +82,7 @@ export default function Admin() {
     if (!/^1\d{10}$/.test(newPhone)) { setErr("手机号格式需 1 开头 11 位数字"); return; }
     setErr("");
     try {
-      await adminFetch("/api/admin/phones", { method: "POST", body: JSON.stringify({ phone: newPhone, label: newLabel || "", enabled: 1, daily_quota_tokens: 200000, daily_upgrade_limit: 5 }) });
+      await adminFetch("/api/admin/phones", { method: "POST", body: JSON.stringify({ phone: newPhone, label: newLabel || "", enabled: 1, daily_quota_tokens: 2000000, daily_upgrade_limit: 5 }) });
       setNewPhone(""); setNewLabel(""); await loadPhones();
     } catch (e) { setErr(String(e)); }
   }
@@ -165,7 +165,7 @@ export default function Admin() {
                     <td className="py-1.5 pr-3 font-mono">{p.phone}</td>
                     <td className="py-1.5 pr-3">{isEd ? <input className="input text-xs py-0.5" value={ed.label ?? ""} onChange={(e) => updateEdit(p.phone, "label", e.target.value)} /> : (p.label || <span className="text-slate-400">—</span>)}</td>
                     <td className="py-1.5 pr-3">{isEd ? <select className="bg-white border text-xs px-1 py-0.5 rounded" value={ed.enabled ? "1" : "0"} onChange={(e) => updateEdit(p.phone, "enabled", e.target.value === "1")}><option value="1">是</option><option value="0">否</option></select> : (p.enabled ? <span className="pill pill-green">启用</span> : <span className="pill pill-zinc">禁用</span>)}</td>
-                    <td className="py-1.5 pr-3">{isEd ? <input type="number" className="input w-20 text-xs py-0.5" value={ed.daily_quota_tokens ?? 200000} onChange={(e) => updateEdit(p.phone, "daily_quota_tokens", Number(e.target.value))} /> : (p.daily_quota_tokens || 0).toLocaleString()}</td>
+                    <td className="py-1.5 pr-3">{isEd ? <input type="number" className="input w-20 text-xs py-0.5" value={ed.daily_quota_tokens ?? 2000000} onChange={(e) => updateEdit(p.phone, "daily_quota_tokens", Number(e.target.value))} /> : (p.daily_quota_tokens || 0).toLocaleString()}</td>
                     <td className="py-1.5 pr-3">{isEd ? <input type="number" className="input w-16 text-xs py-0.5" value={ed.daily_upgrade_limit ?? 5} onChange={(e) => updateEdit(p.phone, "daily_upgrade_limit", Number(e.target.value))} /> : (p.daily_upgrade_limit ?? 5)}</td>
                     <td className="py-1.5 pr-3 text-xs text-slate-600">{p.today_used_tokens ?? 0}</td>
                     <td className="py-1.5 text-xs space-x-2">{isEd ? (<><button className="text-emerald-700" onClick={() => saveEdit(p.phone)}>保存</button><button onClick={() => cancelEdit(p.phone)}>取消</button></>) : (<><button className="text-emerald-700" onClick={() => startEdit(p)}>编辑</button><button className="text-red-600" onClick={() => delPhone(p.phone)}>删除</button></>)}</td>

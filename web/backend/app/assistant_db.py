@@ -22,7 +22,7 @@ _PHONE_RE = re.compile(r"^1\d{10}$")
 
 DEFAULT_SETTINGS = {
     "assistant_enabled": "1",
-    "daily_global_budget_tokens": "2000000",
+    "daily_global_budget_tokens": "20000000",
     "tier_simple_model": "deepseek-v4-flash",
     "tier_diagnosis_model": "qwen3.6",
     "tier_upgrade_model": "gateway-gpt-5.5",
@@ -69,7 +69,7 @@ def init_db(path: str | os.PathLike[str] | None = None) -> None:
                   phone TEXT PRIMARY KEY,
                   label TEXT DEFAULT '',
                   enabled INTEGER DEFAULT 1,
-                  daily_quota_tokens INTEGER DEFAULT 200000,
+                  daily_quota_tokens INTEGER DEFAULT 2000000,
                   daily_upgrade_limit INTEGER DEFAULT 5,
                   created_at TEXT NOT NULL
                 );
@@ -143,7 +143,7 @@ def upsert_phone(
     phone: str,
     label: str = "",
     enabled: int | bool = 1,
-    daily_quota_tokens: int = 200000,
+    daily_quota_tokens: int = 2000000,
     daily_upgrade_limit: int = 5,
 ) -> dict[str, Any]:
     """新增或覆盖手机号配置；created_at 只在首次插入时生成。"""

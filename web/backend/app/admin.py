@@ -83,7 +83,7 @@ class PhoneCreateBody(BaseModel):
     phone: str = Field(pattern=r"^1\d{10}$")
     label: str = Field(default="", max_length=80)
     enabled: bool = True
-    daily_quota_tokens: int = Field(default=200000, ge=0)
+    daily_quota_tokens: int = Field(default=2000000, ge=0)
     daily_upgrade_limit: int = Field(default=5, ge=0)
 
 
@@ -156,7 +156,7 @@ def admin_update_phone(phone: str, body: PhonePatchBody, request: Request) -> di
         daily_quota_tokens=(
             body.daily_quota_tokens
             if body.daily_quota_tokens is not None
-            else int(existing.get("daily_quota_tokens", 200000))
+            else int(existing.get("daily_quota_tokens", 2000000))
         ),
         daily_upgrade_limit=(
             body.daily_upgrade_limit
