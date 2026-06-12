@@ -60,3 +60,4 @@ docker/volumes/
 *.bak
 data/uploads/
 !runs/history/
+web/qnap/assistant.env

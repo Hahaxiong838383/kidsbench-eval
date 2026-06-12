@@ -13,7 +13,12 @@ services:
       QDRANT_HOST: kidsbench-qdrant
       QDRANT_PORT: 6333
       KIDSBENCH_RUNS_PATH: /app/runs
+      KIDSBENCH_ASSISTANT_DB: /app/data/assistant.db
       CORS_ORIGINS: "https://kidsbench.cli4.hahaxiong.cc,http://192.168.61.18:18081,http://localhost:5173"
+    # AI 助手密钥（网关 key / token secret / admin 密码哈希）：
+    # QNAP 宿主上手工放置 chmod 600，不进 git（部署脚本会校验存在性）
+    env_file:
+      - ./assistant.env
     volumes:
       - ./runs-mount:/app/runs:ro       # Air rsync 同步进来（B0 阶段先空，B1 落实）
       - ./data:/app/data                  # SQLite 等（B2 用）
