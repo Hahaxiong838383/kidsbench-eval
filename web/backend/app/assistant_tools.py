@@ -21,6 +21,7 @@ from pathlib import Path
 
 from .config import RUNS_PATH
 
+
 def _detect_repo_root() -> Path:
     """env 优先；本地布局回退 parents[3]。注意不能写成 environ.get(k, default)
     ——default 表达式会被急切求值，容器扁平布局下 parents[3] 直接 IndexError

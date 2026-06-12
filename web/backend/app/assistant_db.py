@@ -96,6 +96,9 @@ def init_db(path: str | os.PathLike[str] | None = None) -> None:
                 "INSERT OR IGNORE INTO settings(key, value) VALUES (?, ?)",
                 DEFAULT_SETTINGS.items(),
             )
+            # 幂等清理：前端解包 bug 曾把假键 items=[object Object] PATCH 进库
+            # （2026-06-12 生产实锤），启动时清掉，防旧库残留
+            conn.execute("DELETE FROM settings WHERE key = 'items'")
             conn.commit()
         _INITIALIZED.add(key)
 

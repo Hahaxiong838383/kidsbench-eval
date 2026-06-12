@@ -194,9 +194,14 @@ async def admin_patch_settings(request: Request) -> dict:
     body = await request.json()
     if not isinstance(body, dict):
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "请求体必须是键值对象")
+    allowed = set(assistant_db.DEFAULT_SETTINGS)
     for key, value in body.items():
         if not isinstance(key, str) or not key:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "setting key 不能为空")
+        if key not in allowed:
+            # 白名单防御：前端 bug 曾把假键写进库（2026-06-12），未知键一律拒
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                                f"未知 setting key: {key}（可用：{'、'.join(sorted(allowed))}）")
         assistant_db.set_setting(key, str(value))
     return {"items": assistant_db.list_settings()}
 

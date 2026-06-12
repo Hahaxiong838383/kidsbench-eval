@@ -68,7 +68,12 @@ export default function Admin() {
     setPhones(list.items || []);
   }
   async function loadUsage() { const u = await adminFetch<{ items?: AdminUsagePoint[] }>("/api/admin/usage?days=7"); setUsage(u.items || []); }
-  async function loadSettings() { const s = await adminFetch<AdminSettings>("/api/admin/settings"); setSettings(s || {}); }
+  async function loadSettings() {
+    // 后端返回 {"items": {...}}，必须解包——不解包会渲染出假键 items=[object Object]
+    // 且失焦时把它 PATCH 进数据库（2026-06-12 生产实锤过的脏数据来源）
+    const s = await adminFetch<{ items?: AdminSettings } & AdminSettings>("/api/admin/settings");
+    setSettings((s && (s.items ?? s)) || {});
+  }
 
   async function loadAll(t?: string) {
     setLoading(true); setErr("");
