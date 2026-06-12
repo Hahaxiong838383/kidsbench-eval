@@ -299,6 +299,46 @@ ADAPTERS: dict = {
             "默认 embedding(bge-small-en)/reranker(ms-marco) 是英文模型，中文必换（A/B 实测英文 reranker 把正确答案压到 #4）",
         ],
     },
+    "reme": {
+        "name": "ReMe（agentic 检索·晚绑定变体）",
+        "sdk": {
+            "package": "reme-ai",
+            "version": "0.3.1.10",
+            "github": "https://github.com/agentscope-ai/ReMe",
+            "install": "pip install reme-ai agentscope==1.0.20",
+        },
+        "entry_class": {
+            "name": "RemeAdapter",
+            "file": "src/kidsbench/adapters/reme_adapter.py",
+            "line": 96,
+        },
+        "methods": [
+            _method("write", "abstract", "src/kidsbench/adapters/reme_adapter.py", 175,
+                    "只进缓存（不调 LLM）+ message_time→turn_id 映射；ReMe 语义单位是对话批"),
+            _method("flush", "abstract", "src/kidsbench/adapters/reme_adapter.py", 193,
+                    "真写入点：缓存批 → summarize_memory（LLM 多轮工具循环抽取）"),
+            _method("read", "abstract", "src/kidsbench/adapters/reme_adapter.py", 217,
+                    "agentic 检索：retrieve_memory → 合成 answer + retrieved_nodes"),
+            _method("clear", "abstract", "src/kidsbench/adapters/reme_adapter.py", 270,
+                    "delete_all 全库清（评测串行无碰撞）+ 缓存/映射清"),
+            _method("consolidate", "overridable", "src/kidsbench/adapters/reme_adapter.py", 288,
+                    "语义整理已在 summarize 内，无独立 consolidate"),
+            _method("get_dependencies", "abstract", "src/kidsbench/adapters/reme_adapter.py", 388, ""),
+            _method("get_stats", "abstract", "src/kidsbench/adapters/reme_adapter.py", 413, ""),
+            _method("get_capability_profile", "abstract", "src/kidsbench/adapters/reme_adapter.py", 422, ""),
+        ],
+        "middleware_deps": [
+            "中文 prompt patch（PromptHandler.prompt_format 单点注入，零 fork；vector 路径无 _zh prompt 默认抽英文记忆）",
+            "embedding_shim（bge-small-zh-v1.5 包成 OpenAI 端点，ReMe 仅支持 API 形态 embedding）",
+        ],
+        "storage": "local 纯 Python 向量后端（JSONL，零外部服务）；user_name 逻辑隔离",
+        "venv": ".venv-reme",
+        "known_issues": [
+            "vector 路径记忆 prompt 无中文版（_zh）→ 默认抽英文记忆，需 monkey patch 注入中文指令（实测注入后完全中文化）",
+            "deepseek 偶发 rate limit 中断长跑批 → --resume 续跑（实测 91→149 续跑零损）",
+            "token usage 不上报（return_dict 无 usage 字段），cost_token 计 0；agentscope 必须钉 1.0.20",
+        ],
+    },
 }
 
 
