@@ -11,7 +11,8 @@ base_url = "http://23.226.135.149:4000/v1"
 api_key_env = "KIDSBENCH_GEMINI_API_KEY"
 model = "gemini-3-flash-preview"
 reasoning_effort = "minimal"
-max_tokens = 4096
+# 上限实测（2026-06-12）：API 400 明示 [1, 65537) 即 65536，边界实测可用（官方文档同为 65536）
+max_tokens = 65536
 
 [embedding]
 provider = "huggingface"

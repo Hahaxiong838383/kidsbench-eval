@@ -15,7 +15,8 @@ provider = "deepseek"
 base_url = "https://api.deepseek.com/v1"
 api_key_env = "KIDSBENCH_DEEPSEEK_API_KEY"
 model = "deepseek-v4-flash"
-max_tokens = 4096
+# 上限实测+grok 文档调研双源吻合（2026-06-12）：API 400 明示合法区间 [1, 393216]（=官方文档 384K），边界实测可用
+max_tokens = 393216
 
 [embedding]
 provider = "huggingface"
