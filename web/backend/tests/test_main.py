@@ -239,3 +239,12 @@ def test_paradigm_coverage(client):
     statuses = {c["task_type"]: c["status"] for c in body["coverage"]}
     assert statuses["T5_longterm"] == "缺席"
     assert statuses["T3_update"] == "不足"
+
+
+def test_questionbank_verdict_explained(client):
+    body = client.get("/api/questionbank").json()
+    v = body["verdict"]
+    assert len(v["states"]) == 3
+    keys = {s["key"] for s in v["states"]}
+    assert keys == {"correct", "wrong", "evasive"}
+    assert v["evasive_meaning"] and v["why_so_many"]

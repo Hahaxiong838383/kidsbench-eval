@@ -199,6 +199,17 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
         "机器按句子定位做归因，对不上就没法判分；")
     add("3. 分布式事实的 gold 逐句列出（// 分隔），不写区间引用。")
 
+    # ---- 判分三态说明
+    from .questionbank import VERDICT_EXPLAINED as _VE
+    add("\n## 判分怎么算（答对 / 答错 / 回避）")
+    add(f"\n{_VE['intro']}\n")
+    for s in _VE["states"]:
+        add(f"- **{s['label']}（{s['key']}）**：{s['plain']} 例：{s['example']}")
+    add("\n**『回避』的双向含义**：")
+    for m in _VE["evasive_meaning"]:
+        add(f"- {m}")
+    add(f"\n> {_VE['why_so_many']}")
+
     # ---- 二点五、评测总榜（跨 run 聚合）
     lb = build_leaderboard(runs_path, questions)
     if lb["board"]:

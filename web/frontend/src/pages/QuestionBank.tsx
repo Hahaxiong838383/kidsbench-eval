@@ -21,6 +21,12 @@ type Overview = {
     steps: HarnessStep[];
     baselines: { term: string; plain: string };
   };
+  verdict: {
+    intro: string;
+    states: { key: string; label: string; plain: string; example: string; tone: string }[];
+    evasive_meaning: string[];
+    why_so_many: string;
+  };
 };
 type FixItem = {
   qid: string;
@@ -243,6 +249,48 @@ export default function QuestionBank() {
           </div>
         )}
       </section>
+
+      {/* ===== 判分三态说明（榜单列含义）===== */}
+      {ov.verdict && (
+        <section className="card space-y-3">
+          <h2 className="text-lg font-semibold">判分怎么算（答对 / 答错 / 回避）</h2>
+          <p className="text-sm text-slate-600">{ov.verdict.intro}</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {ov.verdict.states.map((s) => (
+              <div
+                key={s.key}
+                className={
+                  "rounded p-3 border " +
+                  (s.tone === "good"
+                    ? "border-emerald-200 bg-emerald-50"
+                    : s.tone === "bad"
+                      ? "border-red-200 bg-red-50"
+                      : "border-amber-200 bg-amber-50")
+                }
+              >
+                <div className="font-semibold text-sm">
+                  {s.label}
+                  <span className="text-xs text-slate-500 ml-1 font-mono">{s.key}</span>
+                </div>
+                <div className="text-xs text-slate-700 mt-1">{s.plain}</div>
+                <div className="text-xs text-slate-500 mt-1 italic">{s.example}</div>
+              </div>
+            ))}
+          </div>
+          <div className="bg-slate-50 rounded p-3 space-y-1">
+            <div className="text-sm font-medium">『回避』的双向含义</div>
+            {ov.verdict.evasive_meaning.map((m, i) => (
+              <div key={i} className="text-xs text-slate-700">
+                {m.replace(/\*\*/g, "")}
+              </div>
+            ))}
+          </div>
+          <details className="text-xs text-slate-500">
+            <summary className="cursor-pointer">为什么榜单上回避数看着这么多？</summary>
+            <p className="mt-1">{ov.verdict.why_so_many}</p>
+          </details>
+        </section>
+      )}
 
       {/* ===== 评测总榜 ===== */}
       {lb && lb.board.length > 0 && (
