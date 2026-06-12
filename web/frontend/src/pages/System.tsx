@@ -37,6 +37,22 @@ export default function System() {
       </section>
 
       <section className="card">
+        <h2 className="text-lg font-semibold mb-3">AI 助手管理</h2>
+        <p className="text-sm text-slate-600 mb-3">
+          管理 AI 助手的手机号白名单、每号配额、用量看板和全局设置（需管理密码登录）。
+        </p>
+        <a
+          href="/admin"
+          className="inline-block px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700"
+        >
+          进入管理后台 →
+        </a>
+        <p className="text-xs text-slate-400 mt-2">
+          助手机制白盒说明见右下角助手抽屉，或 GET /api/assistant/info
+        </p>
+      </section>
+
+      <section className="card">
         <h2 className="text-lg font-semibold mb-3">文档链接</h2>
         <ul className="space-y-2 text-sm">
           <li>
