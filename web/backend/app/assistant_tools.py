@@ -12,12 +12,18 @@
 from __future__ import annotations
 
 import json
+
+# ---- read_doc 白名单：语义名 → 仓库内相对路径 ----
+# 本地布局 repo/web/backend/app/ → parents[3]=repo；容器扁平化为 /app/app/
+# → 用 env 显式指定（Dockerfile 设 KIDSBENCH_REPO_ROOT=/app）
+import os
 from pathlib import Path
 
 from .config import RUNS_PATH
 
-# ---- read_doc 白名单：语义名 → 仓库内相对路径（容器内 /app 同布局）----
-_REPO_ROOT = Path(__file__).resolve().parents[3]
+_REPO_ROOT = Path(
+    os.environ.get("KIDSBENCH_REPO_ROOT", str(Path(__file__).resolve().parents[3]))
+).resolve()
 DOC_WHITELIST: dict[str, str] = {
     "评测范式研究": "docs/EVAL_PARADIGM_RESEARCH.md",
     "harness接口规范": "docs/HARNESS_INTERFACE_SPEC.md",

@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, UploadFile
+from fastapi.responses import PlainTextResponse
 
 from .config import PROJECT_ROOT, QUESTIONS_PATH
 
@@ -340,7 +341,6 @@ def export_analysis(run_group: str | None = None) -> PlainTextResponse:
 
     ?run_group=xxx 指定分析哪次运行；缺省取最新一次。
     """
-    from fastapi.responses import PlainTextResponse
 
     from .config import RUNS_PATH
     from .qb_report import build_analysis_md

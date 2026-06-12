@@ -170,3 +170,48 @@ export interface StateSnapshot {
   graphs_count?: number | null;
   latest_run?: StateSnapshot["snapshot"];
 }
+
+// ===== Assistant (契约 §3.1 / §7) =====
+export interface AssistantSession {
+  token: string;
+  expires_at: string;
+  label?: string;
+}
+
+export interface AssistantMessage {
+  role: "user" | "assistant";
+  content: string;
+  // assistant only (from meta)
+  tier_label?: string;
+  degraded?: boolean;
+  model?: string;
+}
+
+export interface AssistantDoneInfo {
+  tokens_in: number;
+  tokens_out: number;
+  quota_left: number;
+  upgrades_left: number;
+}
+
+export interface AdminPhone {
+  phone: string;
+  label: string;
+  enabled: number | boolean;
+  daily_quota_tokens: number;
+  daily_upgrade_limit: number;
+  today_used_tokens?: number;
+}
+
+export interface AdminUsagePoint {
+  phone: string;
+  day: string;
+  tokens: number;
+  requests: number;
+  upgrades: number;
+  degraded: number;
+}
+
+export interface AdminSettings {
+  [key: string]: string;
+}

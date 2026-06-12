@@ -1,5 +1,8 @@
+import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import ErrorBoundary from "./ErrorBoundary";
+import AssistantFab from "./assistant/AssistantFab";
+import AssistantDrawer from "./assistant/AssistantDrawer";
 
 const NAV = [
   { to: "/", label: "总览" },
@@ -18,6 +21,8 @@ const BUILD_ID =
 
 export default function Layout() {
   const location = useLocation();
+  const [assistantOpen, setAssistantOpen] = useState(false);
+
   return (
     <div className="min-h-full flex flex-col">
       <nav className="border-b border-slate-200 bg-white/90 backdrop-blur sticky top-0 z-10">
@@ -54,6 +59,10 @@ export default function Layout() {
       <footer className="border-t border-slate-200 py-4 text-xs text-slate-500 text-center">
         KidsBench Web · build {BUILD_ID} · 若页面异常请强刷（Cmd/Ctrl+Shift+R）
       </footer>
+
+      {/* 全局 AI 助手入口（所有页面可用） */}
+      <AssistantFab onClick={() => setAssistantOpen(true)} />
+      <AssistantDrawer open={assistantOpen} onClose={() => setAssistantOpen(false)} />
     </div>
   );
 }

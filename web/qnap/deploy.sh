@@ -47,6 +47,7 @@ COPYFILE_DISABLE=1 tar czf "$TAR" \
   -C "$PROJECT" src \
   -C "$PROJECT" configs \
   -C "$PROJECT" questions \
+  -C "$PROJECT" docs \
   -C "$PROJECT/web/frontend" dist \
   -C "$PROJECT/web/qnap" Dockerfile.backend Dockerfile.frontend nginx.conf docker-compose.yml
 ls -lh "$TAR"
@@ -78,11 +79,16 @@ sshpass -e ssh "$HOST_ALIAS" "
   # 后端：app/ + requirements.txt + src/ + configs/ + Dockerfile → backend/
   mv app backend/app
   mv requirements.txt backend/requirements.txt
-  rm -rf backend/src backend/configs backend/questions
+  rm -rf backend/src backend/configs backend/questions backend/docs
   mv src backend/src
   mv configs backend/configs
   mv questions backend/questions
+  mv docs backend/docs
   mv Dockerfile.backend backend/Dockerfile
+  # AI 助手密钥文件必须已就位（compose env_file 引用，缺失则 compose 起不来）
+  if [ ! -f assistant.env ]; then
+    echo '❌ 缺少 '$REMOTE_DIR'/assistant.env（助手密钥），先放置再部署'; exit 1
+  fi
   # 前端：dist/ + nginx.conf + Dockerfile.frontend → frontend/
   mv dist frontend/dist
   mv nginx.conf frontend/nginx.conf

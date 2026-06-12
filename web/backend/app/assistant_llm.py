@@ -35,7 +35,7 @@ class TierEndpoint:
     api_key_env: str
     model: str
     max_tokens: int
-    fallback: "TierEndpoint | None" = None
+    fallback: TierEndpoint | None = None
     extra_body: dict = field(default_factory=dict)
 
 
@@ -79,6 +79,7 @@ class StreamEvent:
     kind: str
     text: str = ""
     tool_calls: list | None = None
+    reasoning: str = ""  # thinking 模型的思考内容（工具轮回传协议需要）
     tokens_in: int = 0
     tokens_out: int = 0
     error: str = ""
@@ -110,6 +111,9 @@ async def _stream_once(
 
     # 流式 tool_call delta 聚合缓冲：index → {id, name, arguments 累积}
     tool_buf: dict[int, dict] = {}
+    # thinking 模型（deepseek）的 reasoning_content 也是流式 delta——必须聚合，
+    # 工具轮回传时缺它会 400 "must be passed back"（实测协议坑 #3）
+    reasoning_parts: list[str] = []
     tokens_in = tokens_out = 0
     finish_reason = None
 
@@ -143,6 +147,8 @@ async def _stream_once(
             choice = choices[0]
             finish_reason = choice.get("finish_reason") or finish_reason
             delta = choice.get("delta") or {}
+            if delta.get("reasoning_content"):
+                reasoning_parts.append(delta["reasoning_content"])
             if delta.get("content"):
                 yield StreamEvent(kind="delta", text=delta["content"])
             for tc in delta.get("tool_calls") or []:
@@ -163,6 +169,7 @@ async def _stream_once(
             for i, b in sorted(tool_buf.items())
         ]
         yield StreamEvent(kind="tool_call", tool_calls=calls,
+                          reasoning="".join(reasoning_parts),
                           tokens_in=tokens_in, tokens_out=tokens_out)
     else:
         yield StreamEvent(kind="done", tokens_in=tokens_in, tokens_out=tokens_out)
@@ -183,11 +190,15 @@ async def chat_stream(
     total_in = total_out = 0
     work = list(messages)
     degraded = False
+    any_text = False  # 整个对话流是否吐过正文（防静默空回答）
+    ran_tools = False  # 是否执行过工具（空轮兜底的前提）
+    forced_final = False  # 是否已做过"去工具强制作答"兜底
 
     async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15)) as client:
         for _round in range(MAX_TOOL_ROUNDS + 1):
             collected_text: list[str] = []
             tool_calls: list | None = None
+            tool_reasoning = ""
             stream_err: str | None = None
 
             active_ep = ep
@@ -198,6 +209,7 @@ async def chat_stream(
                     yield StreamEvent(kind="delta", text=ev.text, degraded=degraded)
                 elif ev.kind == "tool_call":
                     tool_calls = ev.tool_calls
+                    tool_reasoning = ev.reasoning
                     total_in += ev.tokens_in
                     total_out += ev.tokens_out
                 elif ev.kind == "done":
@@ -215,14 +227,43 @@ async def chat_stream(
                 yield StreamEvent(kind="error", error=stream_err, degraded=degraded)
                 return
 
+            if collected_text:
+                any_text = True
+
             if not tool_calls:
+                # 空轮兜底（实测：网关 Responses 转译在多工具+大文档轮后会丢上下文，
+                # 模型只吐 reasoning 不吐正文就 stop）——已查过资料却空答时，
+                # 去掉工具再问一轮，强制基于已有资料作答
+                if not collected_text and ran_tools and not forced_final:
+                    forced_final = True
+                    tools = []
+                    work.append({
+                        "role": "user",
+                        "content": "请直接基于上面工具返回的资料回答我最初的问题，不要再调用工具。",
+                    })
+                    continue
+                if not any_text:
+                    yield StreamEvent(kind="error", degraded=degraded,
+                                      error="上游返回了空回答，请重试或点击升级按钮换强模型")
+                    return
                 yield StreamEvent(kind="done", tokens_in=total_in,
                                   tokens_out=total_out, degraded=degraded)
                 return
 
             # FC 循环：assistant(tool_calls) + tool 结果，继续下一轮
             yield StreamEvent(kind="tool_call", tool_calls=tool_calls, degraded=degraded)
-            work.append({"role": "assistant", "content": None, "tool_calls": tool_calls})
+            ran_tools = True
+            assistant_msg: dict = {
+                "role": "assistant",
+                # 保留模型自己的开场白文本（content=None 会让部分 Responses 转译
+                # 网关丢上下文，下一轮空答）
+                "content": "".join(collected_text) or None,
+                "tool_calls": tool_calls,
+            }
+            if tool_reasoning:
+                # thinking 模型协议：思考内容必须原样回传，否则下一轮 400
+                assistant_msg["reasoning_content"] = tool_reasoning
+            work.append(assistant_msg)
             for call in tool_calls:
                 name = call["function"]["name"]
                 try:

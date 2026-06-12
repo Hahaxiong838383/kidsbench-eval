@@ -13,8 +13,10 @@ API 文档（FastAPI 内置）：
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import __version__
+from . import __version__, assistant_db
+from .admin import router as admin_router
 from .architecture import router as architecture_router
+from .assistant import router as assistant_router
 from .config import CORS_ORIGINS
 from .events import router as events_router
 from .llm_presets import router as llm_presets_router
@@ -54,6 +56,11 @@ app.include_router(runs_router)
 app.include_router(llm_presets_router)
 app.include_router(events_router)
 app.include_router(questionbank_router)
+app.include_router(admin_router)
+app.include_router(assistant_router)
+
+# AI 助手 SQLite（手机号白名单/用量/设置）启动时建表，幂等
+assistant_db.init_db()
 
 
 @app.get("/healthz")

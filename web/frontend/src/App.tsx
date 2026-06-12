@@ -11,6 +11,7 @@ import LLMPresets from "./pages/LLMPresets";
 import QuestionBank from "./pages/QuestionBank";
 import Runs from "./pages/Runs";
 import System from "./pages/System";
+import Admin from "./pages/Admin";
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="live" element={<LiveRun />} />
         <Route path="llm" element={<LLMPresets />} />
         <Route path="system" element={<System />} />
+        <Route path="admin" element={<Admin />} />
       </Route>
     </Routes>
   );

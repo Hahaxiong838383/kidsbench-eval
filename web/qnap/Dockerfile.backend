@@ -16,7 +16,11 @@ COPY src/ ./src/
 COPY configs/ ./configs/
 # 题库板块：jsonl + 补丁 + 修题清单 + raw 快照（上传转换要套用补丁）
 COPY questions/ ./questions/
+# AI 助手：read_doc 工具的白名单文档 + 手册
+COPY docs/ ./docs/
 ENV PYTHONPATH=/app/src:${PYTHONPATH:-}
+# AI 助手：容器内仓库根（read_doc/_REPO_ROOT 解析用）
+ENV KIDSBENCH_REPO_ROOT=/app
 
 # 默认 env（可被 docker-compose environment 覆盖）
 ENV KIDSBENCH_RUNS_PATH=/app/runs \
