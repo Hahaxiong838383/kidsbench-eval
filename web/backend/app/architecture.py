@@ -458,6 +458,29 @@ MEMORY_SYSTEMS: dict = {
         "real_time_stats": False,
         "stats_source": "B0 阶段从最近 run 的 results.jsonl 抽 stats",
     },
+    "reme_storage": {
+        "name": "ReMe agentic 检索 + local 向量库",
+        "kind": "agentic_memory",
+        "introduction": {
+            "tldr": "阿里出品（agentscope-ai）的记忆框架。最大特点是「读取时让一个小 agent 多轮工具调用去翻记忆」——不是一次查完，而是边查边想、反复检索，最后综合成答案。中文原生支持，存储是纯 Python 本地向量库（零外部服务）。",
+            "problem": "一次性向量检索（查一次拿 top-k）对复杂问题不够——可能第一次没查到关键的，需要换个角度再查。ReMe 用 agent 自主决定查几次、怎么查。",
+            "mechanism": [
+                "Summarize（写入）：把一批对话喂给 LLM，自动提炼成事实型记忆（用户偏好/任务经验），入本地向量库",
+                "Retrieve（读取）：一个 agent 多轮工具循环——查记忆 → 看够不够 → 不够换角度再查 → 综合成回答（晚绑定变体）",
+                "记忆带 message_time（写入时从对话时间标注抄），KidsBench 用它反查 turn_id 做溯源",
+                "中文 prompt 注入：vector 路径默认抽英文记忆，patch 后完全中文化",
+            ],
+            "key_diff": "「agentic 多轮检索」是它和 mem0（一次 hybrid rerank）/ hindsight（四路并行一次融合）的范式区别——召回更全（实测 recall 0.81）但读取慢（agent 工具循环）。与 hindsight-reflect 同属晚绑定家族，机制不同（多轮检索 vs 一次合成），构成范式内对照",
+        },
+        "schema": {
+            "tables": ["local vector store（JSONL，纯 Python）", "memory_node（personal/task/tool 三类）"],
+            "fact_types": ["personal（用户偏好）", "task（任务经验）", "tool（工具记忆）"],
+            "scoped_by": "user_name（逻辑隔离，delete_all 全库清）",
+        },
+        "deployment": "local 纯 Python 向量后端（JSONL 文件，零外部服务）；embedding 经本地 shim 对齐 bge-small-zh",
+        "real_time_stats": False,
+        "stats_source": "B0 阶段从最近 run 的 results.jsonl 抽 stats",
+    },
 }
 
 

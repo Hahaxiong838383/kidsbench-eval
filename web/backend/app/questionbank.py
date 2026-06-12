@@ -436,6 +436,10 @@ PARADIGM_HOME_GROUND = [
      "home": ["T2_consistency", "T5_longterm"],
      "why": "读取时大模型把多条记忆合成——需要跨多条记忆综合判断的题"
             "（人设一致性、长程多事实）才用得上合成，单事实召回纯属浪费成本"},
+    {"adapter": "reme", "paradigm": "agentic 多轮检索（晚绑定变体）",
+     "home": ["T2_consistency", "T4_interference"],
+     "why": "agent 多轮工具循环检索——需要跨多条记忆综合判断（一致性）或"
+            "从干扰里反复筛对的（干扰召回）才发挥多轮优势；单事实召回纯属浪费 agent 开销"},
     {"adapter": "hipporag2", "paradigm": "图扩散检索（接入中）",
      "home": ["T3_update", "多跳关联（题库暂无此题型）"],
      "why": "海马体启发：检索时在知识图上做 PageRank 扩散——擅长链式想起"
