@@ -45,8 +45,12 @@ def _admin_hash() -> str:
 
 def _require_admin(request: Request) -> dict[str, Any]:
     _admin_hash()
-    auth = request.headers.get("Authorization", "")
-    token = auth.removeprefix("Bearer ").strip()
+    # 公网外层 Basic Auth 占用 Authorization header，API token 走自定义头；
+    # Bearer 仅本地 dev 兜底（2026-06-12 公网验证实战发现的 header 冲突）
+    token = request.headers.get("X-Kidsbench-Token", "").strip()
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        token = auth.removeprefix("Bearer ").strip()
     payload = verify_token(token, "admin") if token else None
     if payload is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "管理员登录已过期")

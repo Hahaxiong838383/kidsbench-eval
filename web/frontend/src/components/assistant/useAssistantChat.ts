@@ -177,7 +177,7 @@ export function useAssistantChat() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
+            "X-Kidsbench-Token": token,  // 公网外层 Basic Auth 占用 Authorization，token 走自定义头
           },
           body: JSON.stringify({
             messages: reqMessages,

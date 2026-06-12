@@ -80,8 +80,12 @@ def _sse(event: str, data: dict) -> str:
 
 
 def _auth_phone(request: Request) -> str:
-    auth = request.headers.get("Authorization", "")
-    token = auth.removeprefix("Bearer ").strip()
+    # 公网外层 Basic Auth 占用 Authorization header，API token 走自定义头；
+    # Bearer 仅本地 dev 兜底（2026-06-12 公网验证实战发现的 header 冲突）
+    token = request.headers.get("X-Kidsbench-Token", "").strip()
+    if not token:
+        auth = request.headers.get("Authorization", "")
+        token = auth.removeprefix("Bearer ").strip()
     payload = verify_token(token, kind="session") if token else None
     if payload is None:
         raise HTTPException(401, "会话无效或已过期，请重新输入手机号")

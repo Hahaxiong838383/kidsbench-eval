@@ -13,7 +13,7 @@ async function adminFetch<T>(path: string, init?: RequestInit, token?: string): 
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(t ? { Authorization: `Bearer ${t}` } : {}),
+      ...(t ? { "X-Kidsbench-Token": t } : {}),  // 同 useAssistantChat：避开 Basic Auth header 冲突
       ...(init?.headers || {}),
     },
   });
