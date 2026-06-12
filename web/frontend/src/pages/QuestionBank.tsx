@@ -29,6 +29,24 @@ type FixItem = {
   diagnosis: string;
   fix: string;
 };
+type BoardRow = {
+  adapter: string;
+  plain: string;
+  avg_score: number;
+  correct: number;
+  wrong: number;
+  evasive: number;
+  error: number;
+  avg_recall: number;
+  write_tokens: number;
+  read_tokens: number;
+  token_note: string;
+};
+type Leaderboard = {
+  groups: string[];
+  board: BoardRow[];
+  findings: { title: string; why: string }[];
+};
 type UploadReport = {
   uploaded_at: string;
   filename: string;
@@ -56,12 +74,14 @@ export default function QuestionBank() {
   const [fixesNote, setFixesNote] = useState("");
   const [openFix, setOpenFix] = useState<string | null>(null);
   const [report, setReport] = useState<UploadReport | null>(null);
+  const [lb, setLb] = useState<Leaderboard | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     getJSON<Overview>("/api/questionbank").then(setOv);
+    getJSON<Leaderboard>("/api/questionbank/leaderboard").then(setLb);
     getJSON<{ note: string; items: FixItem[] }>("/api/questionbank/fixes").then(
       (d) => {
         setFixes(d.items);
@@ -197,6 +217,62 @@ export default function QuestionBank() {
           </div>
         )}
       </section>
+
+      {/* ===== 评测总榜 ===== */}
+      {lb && lb.board.length > 0 && (
+        <section className="card space-y-3">
+          <h2 className="text-lg font-semibold">评测总榜（最近一批全量）</h2>
+          <p className="text-sm text-slate-600">
+            按<b>平均分</b>排序（部分得分制：一题多条要点，命中几条得几分）。
+            聚合自 {lb.groups.join("、")}。前三行是参照物不是被测系统：
+            无记忆=地板、全文=贵但能跑的上限、Oracle=只喂标准答案那句。
+          </p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200">
+                  <th className="py-1.5 pr-3">系统</th>
+                  <th className="py-1.5 pr-3">平均分</th>
+                  <th className="py-1.5 pr-3">全对</th>
+                  <th className="py-1.5 pr-3">答错</th>
+                  <th className="py-1.5 pr-3">回避</th>
+                  <th className="py-1.5 pr-3">召回率</th>
+                  <th className="py-1.5 pr-3">内部开销</th>
+                  <th className="py-1.5">一句话定位</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lb.board.map((b) => (
+                  <tr key={b.adapter} className="border-b border-slate-100 align-top">
+                    <td className="py-1.5 pr-3 font-mono whitespace-nowrap">{b.adapter}</td>
+                    <td className="py-1.5 pr-3 font-semibold">{b.avg_score.toFixed(3)}</td>
+                    <td className="py-1.5 pr-3">{b.correct}</td>
+                    <td className="py-1.5 pr-3">{b.wrong}</td>
+                    <td className="py-1.5 pr-3">{b.evasive}</td>
+                    <td className="py-1.5 pr-3">{b.avg_recall.toFixed(2)}</td>
+                    <td className="py-1.5 pr-3 text-xs whitespace-nowrap">
+                      {b.token_note ||
+                        (b.write_tokens + b.read_tokens > 0
+                          ? `写${(b.write_tokens / 10000).toFixed(0)}万/读${(b.read_tokens / 10000).toFixed(0)}万`
+                          : "—")}
+                    </td>
+                    <td className="py-1.5 text-xs text-slate-600">{b.plain}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3 className="text-base font-semibold pt-1">这轮跑出来的发现（自动生成，每条带依据）</h3>
+          <div className="space-y-2">
+            {lb.findings.map((f) => (
+              <div key={f.title} className="bg-slate-50 rounded p-3">
+                <div className="text-sm font-medium">{f.title}</div>
+                <div className="text-xs text-slate-600 mt-1">{f.why}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ===== 健康度 ===== */}
       <section className="card space-y-2">

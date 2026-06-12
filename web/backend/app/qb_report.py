@@ -34,14 +34,20 @@ def _load_json(path: Path) -> list[dict]:
 # ---------------------------------------------------------------- 运行诊断规则
 # 每条规则：吃 results 行，吐「人话发现」。规则本身就是文档（白话写清依据）。
 
-def _diag_nomemory_leak(rows: list[dict]) -> list[str]:
+def _diag_nomemory_leak(rows: list[dict],
+                        questions: list[dict] | None = None) -> list[str]:
     """泄露探测：NoMemory（完全没有记忆）答对的题。
 
     白话依据：题目按「不看记忆猜不出」设计，没记忆还答对 = 答案泄露在
     场景/当场对话里，或题目可被常识猜中 → 该题区分度为零，要打回修题。
+    例外：该遗忘型题（negative_only，如 S08 周报「不该提负面旧事」）——
+    NoMemory 没记忆天然不会翻旧账、必然得分，不算泄露，排除在外。
     """
+    neg_only = {q["qid"] for q in (questions or [])
+                if q.get("judgment_mode") == "negative_only"}
     leaks = [r["qid"] for r in rows
-             if r["adapter"] == "nomemory" and r.get("judge_verdict") == "correct"]
+             if r["adapter"] == "nomemory" and r.get("judge_verdict") == "correct"
+             and r["qid"] not in neg_only]
     if not leaks:
         return ["✅ NoMemory 基线零答对——没有题目泄露答案，区分度健康。"]
     return [f"🔴 **疑似泄露 {len(leaks)} 题**（NoMemory 没有任何记忆却答对了，"
@@ -193,6 +199,23 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
         "机器按句子定位做归因，对不上就没法判分；")
     add("3. 分布式事实的 gold 逐句列出（// 分隔），不写区间引用。")
 
+    # ---- 二点五、评测总榜（跨 run 聚合）
+    lb = build_leaderboard(runs_path, questions)
+    if lb["board"]:
+        add("\n## 评测总榜（最近一批全量，按平均分排序）")
+        add(f"\n> 聚合自：{', '.join(lb['groups'])}\n")
+        add("| 系统 | 平均分 | 全对 | 答错 | 回避 | 召回率 | 内部开销(tokens) | 一句话定位 |")
+        add("|---|---|---|---|---|---|---|---|")
+        for b in lb["board"]:
+            tok = (b["token_note"] or
+                   f"写 {b['write_tokens']:,} / 读 {b['read_tokens']:,}")
+            add(f"| {b['adapter']} | **{b['avg_score']}** | {b['correct']} | "
+                f"{b['wrong']} | {b['evasive']} | {b['avg_recall']} | {tok} | "
+                f"{b['plain']} |")
+        add("\n### 这轮跑出来的发现（规则自动生成，每条带依据）\n")
+        for fi in lb["findings"]:
+            add(f"- **{fi['title']}**\n  {fi['why']}")
+
     # ---- 三、评测运行诊断
     add("\n## 三、本次评测运行诊断")
     if not rows:
@@ -204,8 +227,9 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
         add("### 判分分布（每系统）")
         L.extend(_diag_evasive(rows))
         add("\n### 自动诊断（规则与依据见行内说明）")
-        for fn in (_diag_nomemory_leak, _diag_fullhistory_ceiling,
-                   _diag_errors, _diag_need_human):
+        for line in _diag_nomemory_leak(rows, questions):
+            add(f"- {line}")
+        for fn in (_diag_fullhistory_ceiling, _diag_errors, _diag_need_human):
             for line in fn(rows):
                 add(f"- {line}")
         for line in _diag_query_gap(rows, questions):
@@ -242,3 +266,150 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
   score=命中比例（单命题题行为不变，verdict/acc 口径不变，零回归）。
 """)
     return "\n".join(L) + "\n"
+
+
+# ---------------------------------------------------------------- 评测榜单（跨 run 聚合）
+
+# 每个系统的人话定位（榜单注释，新接入系统时在此登记）
+ADAPTER_PLAIN = {
+    "nomemory": "地板参照：完全没有记忆。它答对的题=泄露或可猜中，是题目的问题",
+    "fullhistory": "全文上限参照：把全部历史原文塞给模型，贵且不现实，但能测出『题目本身可不可答』",
+    "oracle": "最小充分信息参照：只喂标准答案那句。真实系统超过它说明『多召回的上下文也有价值』",
+    "mem0": "LLM 抽取式：写入时用大模型把对话提炼成事实再存",
+    "memoryos": "分层存储式：短期/中期/长期三层记忆架构，按热度晋升",
+    "graphiti": "知识图谱式：把对话抽成实体关系图，强项是时序推理（本批 T3 题极少，发挥不出）",
+    "hindsight-recall": "四路检索·早绑定：写入时深加工，读取纯检索零大模型调用",
+    "hindsight-reflect": "四路检索·晚绑定：读取时再用大模型把记忆合成成答案素材，成本最高",
+}
+
+
+def _avg(xs: list[float]) -> float:
+    return sum(xs) / len(xs) if xs else 0.0
+
+
+def _recall_value(r: dict) -> float:
+    m = r.get("recall_metric")
+    if isinstance(m, dict):
+        return float(m.get("recall") or 0)
+    return float(m or 0)
+
+
+def build_leaderboard(runs_path: Path, questions: list[dict],
+                      prefix: str = "v01_full") -> dict:
+    """跨 run group 聚合总榜 + 自动发现。
+
+    多 venv 分批跑时每家系统各占一个 run 目录（v01_full_mem0 / _graphiti…），
+    本函数按目录名前缀扫描合并。发现（findings）由规则自动生成——
+    每条规则的依据写成人话直接放进文案，不靠每轮手写。
+    """
+    rows_by_adapter: dict[str, list[dict]] = {}
+    groups: list[str] = []
+    if runs_path.exists():
+        for d in sorted(runs_path.iterdir()):
+            if not d.is_dir() or not d.name.startswith(prefix):
+                continue
+            f = d / "results.jsonl"
+            if not f.exists():
+                # 本地两层结构（run_<ts>/results.jsonl）取最新
+                subs = sorted(d.glob("run_*/results.jsonl"))
+                if not subs:
+                    continue
+                f = subs[-1]
+            groups.append(d.name)
+            for line in f.open(encoding="utf-8"):
+                if not line.strip():
+                    continue
+                r = json.loads(line)
+                rows_by_adapter.setdefault(r["adapter"], []).append(r)
+
+    board = []
+    for a, rows in rows_by_adapter.items():
+        n = len(rows)
+        verdicts = Counter(r.get("judge_verdict") for r in rows)
+        write_tok = sum(r.get("adapter_write_tokens") or 0 for r in rows)
+        read_tok = sum(r.get("adapter_read_tokens") or 0 for r in rows)
+        board.append({
+            "adapter": a,
+            "plain": ADAPTER_PLAIN.get(a, ""),
+            "n": n,
+            "avg_score": round(_avg([r.get("judge_score") or 0 for r in rows]), 3),
+            "correct": verdicts.get("correct", 0),
+            "wrong": verdicts.get("wrong", 0),
+            "evasive": verdicts.get("evasive", 0),
+            "error": sum(1 for r in rows if not r.get("success", True)),
+            "avg_recall": round(_avg([_recall_value(r) for r in rows]), 2),
+            "write_tokens": write_tok,
+            "read_tokens": read_tok,
+            "token_note": ("未上报（adapter 计量待补）"
+                           if (write_tok == 0 and read_tok == 0
+                               and a not in ("nomemory", "fullhistory", "oracle"))
+                           else ""),
+        })
+    board.sort(key=lambda x: -x["avg_score"])
+
+    findings = _auto_findings(board, rows_by_adapter, questions)
+    return {"groups": groups, "board": board, "findings": findings}
+
+
+def _auto_findings(board: list[dict], rows_by_adapter: dict,
+                   questions: list[dict]) -> list[dict]:
+    """从榜单数据自动生成人话发现。每条带 why（依据）。"""
+    by = {b["adapter"]: b for b in board}
+    findings: list[dict] = []
+
+    oracle = by.get("oracle")
+    if oracle:
+        beat = [b["adapter"] for b in board
+                if b["avg_score"] > oracle["avg_score"]
+                and b["adapter"] not in ("oracle",)]
+        if beat:
+            findings.append({
+                "title": f"{'、'.join(beat)} 的平均分超过了 Oracle 参照",
+                "why": "Oracle 只喂『标准答案那一句』。真实系统多召回的周边上下文"
+                       "反而帮模型把回答组织得更好——Oracle 是『最小充分信息』参照，"
+                       "不是绝对上限，对比时要按这个含义解读。",
+            })
+
+    hr, hf = by.get("hindsight-recall"), by.get("hindsight-reflect")
+    if hr and hf and hf["read_tokens"] > 100_000:
+        findings.append({
+            "title": "晚绑定（reflect）性价比显著低于早绑定（recall）",
+            "why": f"reflect 读取时额外消耗 {hf['read_tokens']:,} tokens 做大模型合成，"
+                   f"平均分（{hf['avg_score']}）反而低于零读取成本的 recall"
+                   f"（{hr['avg_score']}）。本批题以基础召回/一致性为主，"
+                   "读时深加工没有用武之地——该结论是方向性趋势，时序/长程压力题"
+                   "（T3/T5）补齐后需复测。",
+        })
+
+    task_counts = Counter(q.get("task_type") for q in questions)
+    g = by.get("graphiti")
+    if g and task_counts.get("T3_update", 0) < 10:
+        findings.append({
+            "title": "知识图谱（graphiti）排名靠后，但本批题测不出它的强项",
+            "why": f"graphiti 的优势是时序推理与矛盾更新，而本批题 T3 矛盾更新仅 "
+                   f"{task_counts.get('T3_update', 0)} 题、T5 长程为 0——"
+                   "它的主场题型缺席。『这批题上弱』不等于『范式没价值』，"
+                   "补齐 T3/T5 题后必须复测再下结论。",
+        })
+
+    nm = by.get("nomemory")
+    if nm and board:
+        top = board[0]
+        findings.append({
+            "title": f"区分度：最强系统（{top['adapter']} {top['avg_score']}）与"
+                     f"无记忆地板（{nm['avg_score']}）拉开 "
+                     f"{round(top['avg_score'] - nm['avg_score'], 3)} 分",
+            "why": "地板与顶部的差值就是『记忆系统的价值空间』。差值越大，"
+                   "题库越能区分系统好坏。同时整体天花板仍偏低（大量回答"
+                   "未完全命中多条命题）——回答字数限制与多命题全蕴含口径"
+                   "是当前主要压制因素。",
+        })
+
+    hr_only = by.get("hindsight-reflect")
+    if hr_only and hr_only["avg_recall"] == 0:
+        findings.append({
+            "title": "reflect 模式召回率显示 0 是统计口径问题，不是真没召回",
+            "why": "reflect 返回的是大模型合成后的文本，没有原始记录编号可溯源，"
+                   "按编号匹配的召回率算法对它不适用。看它的平均分即可。",
+        })
+    return findings

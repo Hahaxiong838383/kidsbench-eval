@@ -200,3 +200,17 @@ def test_questionbank_export_analysis(client):
     # 报告必须含人话章节（显性化要求）
     for needle in ("题库与评测分析报告", "题库的问题与改进", "改善建议与论证", "三条铁律"):
         assert needle in text
+
+
+def test_questionbank_leaderboard(client):
+    response = client.get("/api/questionbank/leaderboard")
+    assert response.status_code == 200
+    body = response.json()
+    # 本地 runs 有 v01_full_* 数据时应有完整榜单与发现
+    if body["board"]:
+        first = body["board"][0]
+        assert all(k in first for k in ("adapter", "avg_score", "plain", "correct"))
+        assert isinstance(body["findings"], list)
+        # 榜单按平均分降序
+        scores = [b["avg_score"] for b in body["board"]]
+        assert scores == sorted(scores, reverse=True)

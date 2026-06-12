@@ -308,3 +308,13 @@ def export_analysis(run_group: str | None = None) -> PlainTextResponse:
         md, media_type="text/markdown; charset=utf-8",
         headers={"Content-Disposition":
                  f'attachment; filename="kidsbench_analysis_{ts}.md"'})
+
+
+@router.get("/leaderboard")
+def leaderboard(prefix: str = "v01_full") -> dict:
+    """评测总榜：跨 run 聚合 + 自动发现（人话）。web 显示与 MD 导出同源。"""
+    from .config import RUNS_PATH
+    from .qb_report import build_leaderboard
+
+    questions = _load_jsonl(_bank_paths()["jsonl"])
+    return build_leaderboard(RUNS_PATH, questions, prefix)
