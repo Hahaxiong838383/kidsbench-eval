@@ -48,8 +48,8 @@ _ERROR_MAPPING = {
     "httpx.ReadTimeout": TimeoutError_,
     "httpx.ConnectError": NetworkError,
     "httpx.HTTPStatusError": NetworkError,
-    "requests.exceptions.Timeout": TimeoutError_,
-    "requests.exceptions.ConnectionError": NetworkError,
+    "httpx.ConnectTimeout": TimeoutError_,
+    "httpx.PoolTimeout": TimeoutError_,
     "openai.RateLimitError": RateLimitError,
     "openai.AuthenticationError": AuthError,
 }
@@ -94,11 +94,9 @@ class MemMachineAdapter(MemoryAdapter):
 
     def _ensure_session(self) -> Any:
         if self._session is None:
-            try:
-                import requests
-            except Exception as err:  # pragma: no cover - 依赖检查
-                raise AdapterError("requests not installed; run: pip install requests") from err
-            self._session = requests.Session()
+            import httpx  # 仓库 base 依赖（pyproject），不引入 requests
+
+            self._session = httpx.Client(timeout=self._timeout)
         return self._session
 
     @staticmethod
@@ -211,9 +209,17 @@ class MemMachineAdapter(MemoryAdapter):
         """删整个 project（物理清除，实测删后 search 抛 SessionDeletedError）。"""
         t0 = time.perf_counter()
         n_seen = len(self._seen.pop(user_id, set()))
-        self._post("/projects/delete", {
-            "org_id": _ORG_ID, "project_id": self._project_id(user_id),
-        })
+        try:
+            self._post("/projects/delete", {
+                "org_id": _ORG_ID, "project_id": self._project_id(user_id),
+            })
+        except AdapterError as err:
+            # harness 每题开始先 clear 保洁场——project 还没建过时 404 "does not exist"
+            # 是空清成功不是失败（w3 smoke 实战：12/12 因此全灭）
+            if "does not exist" in str(err) or "404" in str(err):
+                n_seen = 0
+            else:
+                raise
         return ClearStats(
             success=True, latency_ms=(time.perf_counter() - t0) * 1000,
             deleted_count=n_seen,

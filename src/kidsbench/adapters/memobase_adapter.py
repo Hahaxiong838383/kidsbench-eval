@@ -147,8 +147,11 @@ class MemobaseAdapter(MemoryAdapter):
                 cost_token=0, raw={"deduplicated": True},
             )
         user = self._user(user_id)
+        # ChatBlob.role 只收 user/assistant（pydantic Literal）；题库有少量 system 旁白
+        # （149 题共 3 条）→ 映射 assistant（w3 smoke 实战 ValidationError）
+        role = turn.role if turn.role in ("user", "assistant") else "assistant"
         user.insert(self._make_chat_blob([{
-            "role": turn.role or "user",
+            "role": role,
             "content": turn.text,
             "created_at": self._ts_str(turn),
         }]))

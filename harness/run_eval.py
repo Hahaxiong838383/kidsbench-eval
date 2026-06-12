@@ -455,6 +455,80 @@ def make_hindsight_adapters(preset: LLMPreset) -> dict[str, MemoryAdapter] | Non
     }
 
 
+def make_memobase_adapter(preset: LLMPreset) -> MemoryAdapter | None:
+    """如果 memobase client 可用 + server 在跑就返 MemobaseAdapter（画像中心）。
+
+    需先跑 scripts/setup_memobase_server.sh（pg0+redis+源码 uvicorn，port 8019）。
+    注意：memobase 内部 LLM（画像抽取）由 server config.yaml 配置（deepseek），
+    非 preset 注入——能力矩阵/榜单已注明（同 graphiti 内部 LLM 处理方式）。"""
+    try:
+        from memobase import MemoBaseClient  # noqa: F401
+
+        from kidsbench.adapters.memobase_adapter import MemobaseAdapter
+    except (ImportError, ModuleNotFoundError):
+        return None
+    import urllib.request
+    base = os.environ.get("MEMOBASE_SERVER_URL", "http://127.0.0.1:8019")
+    token = os.environ.get("MEMOBASE_ACCESS_TOKEN", "kb-phase0-secret")
+    try:
+        req = urllib.request.Request(
+            f"{base}/api/v1/healthcheck", headers={"Authorization": f"Bearer {token}"})
+        with urllib.request.urlopen(req, timeout=3) as r:
+            if r.status != 200:
+                return None
+    except Exception:
+        print("[harness] memobase server 未就绪（跑 scripts/setup_memobase_server.sh），跳过", flush=True)
+        return None
+    _ensure_embedding_shim()  # event 检索依赖 shim（server 侧调用）
+    return MemobaseAdapter(config={"base_url": base, "api_key": token})
+
+
+def make_memmachine_adapter(preset: LLMPreset) -> MemoryAdapter | None:
+    """如果 memmachine server 在跑就返 MemMachineAdapter（真值保存）。
+
+    需先跑 scripts/setup_memmachine_server.sh（全 SQLite，port 8021）。
+    adapter 纯 HTTP（requests），无 SDK 依赖——主 .venv 直接可跑。"""
+    import urllib.request
+    base = os.environ.get("MEMMACHINE_SERVER_URL", "http://127.0.0.1:8021/api/v2")
+    try:
+        with urllib.request.urlopen(f"{base}/health", timeout=3) as r:
+            if r.status != 200:
+                return None
+    except Exception:
+        print("[harness] memmachine server 未就绪（跑 scripts/setup_memmachine_server.sh），跳过", flush=True)
+        return None
+    _ensure_embedding_shim()  # 写入 embedding ingest 依赖 shim（server 侧调用）
+    from kidsbench.adapters.memmachine_adapter import MemMachineAdapter
+    return MemMachineAdapter(config={"base_url": base})
+
+
+def make_cognee_adapter(preset: LLMPreset) -> MemoryAdapter | None:
+    """如果 cognee 可用就返 CogneeAdapter（多跳邻域投影）。需 .venv-cognee。
+
+    cognee 进程内嵌入式（kuzu+LanceDB），无独立 server；LLM 走 gemini proxy
+    （deepseek thinking 拒 instructor tool_choice，见 COGNEE_VERIFIED_FACTS 工程事实 #2/#3）。"""
+    # ⚠️ 不能在这里 import cognee 做可用性检查：cognee import 时就初始化配置
+    # （日志/LLM config 冻结），此时 LLM_API_KEY 还没被 adapter 注入 →
+    # 真跑时 LLMAPIKeyNotSetError（w3 smoke 实战）。用 find_spec 探测不触发 import。
+    import importlib.util
+
+    if importlib.util.find_spec("cognee") is None:
+        return None
+    from kidsbench.adapters.cognee_adapter import CogneeAdapter
+    shim_url = _ensure_embedding_shim()
+    gemini_key = os.environ.get("KIDSBENCH_GEMINI_API_KEY", "")
+    if not gemini_key:
+        print("[harness] cognee 需要 KIDSBENCH_GEMINI_API_KEY（gemini proxy），跳过", flush=True)
+        return None
+    return CogneeAdapter(config={
+        "llm_model": "openai/gemini-2.5-flash",
+        "llm_endpoint": "http://23.226.135.149:4000/v1",
+        "llm_api_key": gemini_key,
+        "embedding_endpoint": shim_url,
+        "embedding_dim": preset.embedding.dim,
+    })
+
+
 def load_questions(path: Path) -> list[dict]:
     questions = []
     with path.open("r", encoding="utf-8") as f:
@@ -1086,6 +1160,24 @@ def main() -> int:
         "embedding 经本地 shim 对齐 bge-small-zh）",
     )
     parser.add_argument(
+        "--include-memobase",
+        action="store_true",
+        help="是否跑 MemobaseAdapter（画像中心；需 server：scripts/setup_memobase_server.sh，"
+        "client：pip install memobase 进当前 venv）",
+    )
+    parser.add_argument(
+        "--include-memmachine",
+        action="store_true",
+        help="是否跑 MemMachineAdapter（真值保存；需 server：scripts/setup_memmachine_server.sh，"
+        "adapter 纯 HTTP 无 SDK 依赖）",
+    )
+    parser.add_argument(
+        "--include-cognee",
+        action="store_true",
+        help="是否跑 CogneeAdapter（多跳；需 .venv-cognee：pip install cognee 'mistralai>=1.5,<2'，"
+        "进程内嵌入式无独立 server）",
+    )
+    parser.add_argument(
         "--skip-baselines",
         action="store_true",
         help="跳过 nomemory/fullhistory/oracle 基线（多 venv 分批跑时基线只需跑一次，"
@@ -1173,6 +1265,24 @@ def main() -> int:
             print("[harness] hindsight 不可用（未装 hindsight-client 或 server 起不来），跳过", flush=True)
         else:
             adapters.update(hindsight_pair)
+    if args.include_memobase:
+        memobase_a = make_memobase_adapter(preset)
+        if memobase_a is None:
+            print("[harness] memobase 不可用（无 server/未装 client），跳过", flush=True)
+        else:
+            adapters["memobase"] = memobase_a
+    if args.include_memmachine:
+        memmachine_a = make_memmachine_adapter(preset)
+        if memmachine_a is None:
+            print("[harness] memmachine 不可用（server 未就绪），跳过", flush=True)
+        else:
+            adapters["memmachine"] = memmachine_a
+    if args.include_cognee:
+        cognee_a = make_cognee_adapter(preset)
+        if cognee_a is None:
+            print("[harness] cognee 不可用（未装 cognee 或缺 gemini key），跳过", flush=True)
+        else:
+            adapters["cognee"] = cognee_a
 
     print(f"[harness] adapters: {list(adapters.keys())}", flush=True)
     llm = ProxyLLMClient(preset)

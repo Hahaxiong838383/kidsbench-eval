@@ -118,6 +118,7 @@ class CogneeAdapter(MemoryAdapter):
         self._seen: dict[str, set[str]] = {}
         self._stats = {"total_writes": 0, "total_reads": 0, "dedup_hits": 0}
         self._setup_done = False
+        self._loop: Any = None  # 持久 event loop（见 _run docstring）
 
     # ------------------------------------------------------------ cognee
 
@@ -159,10 +160,15 @@ class CogneeAdapter(MemoryAdapter):
             env["LLM_API_KEY"] = c["llm_api_key"]
         return env
 
-    @staticmethod
-    def _run(coro: Any) -> Any:
-        """async cognee API → 同步契约。每次新建 event loop（避免跨调用复用问题）。"""
-        return asyncio.run(coro)
+    def _run(self, coro: Any) -> Any:
+        """async cognee API → 同步契约。**持久事件循环**（per adapter 实例）。
+
+        不能用 asyncio.run（每次新建 loop）：cognee 持有模块级 asyncio.Lock，
+        绑定首个 loop，第二次调用在新 loop 里炸 "bound to a different event loop"
+        （w3 smoke 实战，codex 对抗审 P2 预警命中）。"""
+        if self._loop is None or self._loop.is_closed():
+            self._loop = asyncio.new_event_loop()
+        return self._loop.run_until_complete(coro)
 
     def _dataset(self, user_id: str) -> str:
         return f"kb_{user_id}"
@@ -234,12 +240,21 @@ class CogneeAdapter(MemoryAdapter):
         if user_id not in self._seen:
             return ReadResult(memories=[], latency_ms=(time.perf_counter() - t0) * 1000)
         cognee = self._ensure_cognee()
+        # 多跳深度参数按版本适配：neighborhood_depth 是 main 分支新 API，
+        # PyPI 0.5.1 没有（真 server 直测抓出的版本错位）——0.5.1 的多跳由
+        # GRAPH_COMPLETION 内置图遍历 + wide_search_top_k 承担
+        import inspect
+
+        search_params = inspect.signature(cognee.search).parameters
+        kwargs: dict[str, Any] = {
+            "query_type": self._search_type.GRAPH_COMPLETION,
+            "top_k": max(opts.top_k, 5),
+            "datasets": [self._dataset(user_id)],
+        }
         depth = int(self._config.get("neighborhood_depth", 2))
-        results = self._run(cognee.search(
-            query, query_type=self._search_type.GRAPH_COMPLETION,
-            top_k=max(opts.top_k, 5), neighborhood_depth=depth,
-            datasets=[self._dataset(user_id)],
-        ))
+        if "neighborhood_depth" in search_params:
+            kwargs["neighborhood_depth"] = depth
+        results = self._run(cognee.search(query, **kwargs))
         self._stats["total_reads"] += 1
         memories: list[Memory] = []
         for rank, r in enumerate(results[: opts.top_k]):
@@ -276,6 +291,15 @@ class CogneeAdapter(MemoryAdapter):
             success=True, latency_ms=(time.perf_counter() - t0) * 1000,
             deleted_count=n_seen,
         )
+
+    def close(self) -> None:
+        """teardown：关闭持久 event loop（尽力而为）。"""
+        if self._loop is not None and not self._loop.is_closed():
+            try:
+                self._loop.close()
+            except Exception:
+                pass
+            self._loop = None
 
     # ------------------------------------------------------------ 白盒接口
 

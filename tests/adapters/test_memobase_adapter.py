@@ -153,3 +153,17 @@ def test_lane_c_incompatible():
     a = _adapter()
     prof = a.get_capability_profile()
     assert prof.lane_compatibility["C"] == "incompatible"
+
+
+def test_system_role_clamped_to_assistant():
+    """题库 system 旁白 turn 映射 assistant（ChatBlob Literal 校验，w3 smoke 回归）。"""
+    a = _adapter()
+    t = _turn(tid="t_sys", text="【场景】晚自习开始")
+    object.__setattr__(t, "role", "system") if hasattr(t, "__dataclass_fields__") else None
+    import dataclasses
+
+    t2 = dataclasses.replace(t, role="system") if dataclasses.is_dataclass(t) else t
+    a.write("u1", t2)
+    user = a._ensure_client().get_user(a._uids["u1"])
+    blob = user._blobs[-1]
+    assert blob.messages[0]["role"] == "assistant"

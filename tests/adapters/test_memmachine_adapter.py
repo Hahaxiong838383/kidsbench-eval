@@ -155,3 +155,21 @@ def test_capability_honesty():
     assert by["turn_id_traceback"].level == "native"
     assert by["physical_clear"].level == "native"
     assert by["cost_accounting"].level == "declared"  # 不吹牛
+
+
+def test_clear_nonexistent_project_is_vacuous_success():
+    """harness 每题开始先 clear——project 不存在的 404 是空清成功（w3 smoke 回归）。"""
+    a = _adapter()
+    cs = a.clear("never_written_user")  # fake session 对未知 project 的 delete 返回 204，
+    assert cs.success                    # 真 server 是 404 —— 用 mock 直接断言 404 分支：
+
+    class _404Session:
+        def post(self, url, json=None, timeout=None):
+            return _FakeResp(404, {"detail": {"message": "Project does not exist"}})
+
+        def close(self):
+            pass
+
+    a2 = MemMachineAdapter(session=_404Session())
+    cs2 = a2.clear("u_never")
+    assert cs2.success and cs2.deleted_count == 0
