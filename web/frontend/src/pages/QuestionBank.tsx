@@ -63,6 +63,12 @@ type History = {
     delta: Record<string, number | string>;
   };
 };
+type ParadigmCoverage = {
+  home_ground: { adapter: string; paradigm: string; home: string[]; why: string }[];
+  coverage: { task_type: string; name: string; count: number; minimum: number; status: string; starved_paradigms: string[] }[];
+  suggestions: string[];
+  principle: string;
+};
 type UploadReport = {
   uploaded_at: string;
   filename: string;
@@ -92,6 +98,7 @@ export default function QuestionBank() {
   const [report, setReport] = useState<UploadReport | null>(null);
   const [lb, setLb] = useState<Leaderboard | null>(null);
   const [hist, setHist] = useState<History | null>(null);
+  const [pc, setPc] = useState<ParadigmCoverage | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadErr, setUploadErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -100,6 +107,7 @@ export default function QuestionBank() {
     getJSON<Overview>("/api/questionbank").then(setOv);
     getJSON<Leaderboard>("/api/questionbank/leaderboard").then(setLb);
     getJSON<History>("/api/questionbank/leaderboard/history").then(setHist);
+    getJSON<ParadigmCoverage>("/api/questionbank/paradigm-coverage").then(setPc);
     getJSON<{ note: string; items: FixItem[] }>("/api/questionbank/fixes").then(
       (d) => {
         setFixes(d.items);
@@ -422,6 +430,83 @@ export default function QuestionBank() {
           <div className="text-xs text-slate-700 mt-1">{ov.harness.baselines.plain}</div>
         </div>
       </section>
+
+      {/* ===== 范式×题型覆盖（出题优化地图）===== */}
+      {pc && (
+        <section className="card space-y-3">
+          <h2 className="text-lg font-semibold">范式 × 题型覆盖（出题优化地图）</h2>
+          <p className="text-sm text-slate-700">{pc.principle}</p>
+
+          <h3 className="text-base font-semibold">各题型当前覆盖</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200">
+                  <th className="py-1.5 pr-3">题型</th>
+                  <th className="py-1.5 pr-3">现有</th>
+                  <th className="py-1.5 pr-3">建议</th>
+                  <th className="py-1.5 pr-3">状态</th>
+                  <th className="py-1.5">主场受影响的范式</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pc.coverage.map((c) => (
+                  <tr key={c.task_type} className="border-b border-slate-100">
+                    <td className="py-1.5 pr-3">{c.name}</td>
+                    <td className="py-1.5 pr-3 font-semibold">{c.count}</td>
+                    <td className="py-1.5 pr-3 text-slate-500">≥{c.minimum}</td>
+                    <td className="py-1.5 pr-3">
+                      <span
+                        className={
+                          c.status === "充足"
+                            ? "text-emerald-600"
+                            : c.status === "不足"
+                              ? "text-amber-600"
+                              : "text-red-600 font-semibold"
+                        }
+                      >
+                        {c.status}
+                      </span>
+                    </td>
+                    <td className="py-1.5 text-xs text-slate-600">
+                      {c.starved_paradigms.join("、") || "—"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {pc.suggestions.length > 0 && (
+            <div className="bg-amber-50 rounded p-3 space-y-1">
+              <div className="text-sm font-medium">给出题侧的补题优先级</div>
+              {pc.suggestions.map((s, i) => (
+                <div key={i} className="text-xs text-slate-700">
+                  {i + 1}. {s}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium">
+              每个范式的主场是什么（点开看依据）
+            </summary>
+            <div className="mt-2 space-y-2">
+              {pc.home_ground.map((h) => (
+                <div key={h.adapter} className="bg-slate-50 rounded p-3">
+                  <div className="text-sm">
+                    <span className="font-mono font-medium">{h.adapter}</span>
+                    <span className="text-slate-500">（{h.paradigm}）</span>
+                    <span className="text-xs ml-2">主场：{h.home.join("、")}</span>
+                  </div>
+                  <div className="text-xs text-slate-600 mt-1">{h.why}</div>
+                </div>
+              ))}
+            </div>
+          </details>
+        </section>
+      )}
 
       {/* ===== 修理记录 ===== */}
       <section className="card space-y-3">

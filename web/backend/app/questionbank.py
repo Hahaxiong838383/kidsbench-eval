@@ -365,3 +365,91 @@ def create_snapshot(prefix: str = "v01_full", label: str = "",
     except ValueError as e:
         raise HTTPException(422, str(e)) from e
     return {"created": snap["snapshot_id"], "label": snap["label"]}
+
+
+# ---------------------------------------------------------------- 范式×题型覆盖地图
+# 每个记忆系统范式的「主场题型」——哪类题才能测出它的价值。
+# 出题侧按此针对性补题：主场题型缺席时，该范式跑分低不等于范式没价值
+# （graphiti 首跑垫底就是这个原因）。新系统接入时在此登记主场。
+
+PARADIGM_HOME_GROUND = [
+    {"adapter": "mem0", "paradigm": "LLM 抽取式",
+     "home": ["T1_recall", "T7_noise"],
+     "why": "写入时大模型提炼事实——基础召回是基本盘；面对 ASR 错字/口语废话，"
+            "抽取自带语义纠错（也可能把错字固化成错误事实，正反都值得测）"},
+    {"adapter": "memoryos", "paradigm": "分层存储式",
+     "home": ["T5_longterm"],
+     "why": "短/中/长期三层按热度晋升——记忆量大、时间跨度长时分层才开始起作用，"
+            "几十条以内的题测不出它和单层存储的区别"},
+    {"adapter": "graphiti", "paradigm": "时序知识图谱",
+     "home": ["T3_update"],
+     "why": "图的边带时间有效区间，专为『新信息覆盖旧信息』设计——矛盾更新题"
+            "（孩子先说爱恐龙后来迷上太空）是它的主场，T1 纯召回发挥不出图的价值"},
+    {"adapter": "hindsight-recall", "paradigm": "四路检索·早绑定",
+     "home": ["T1_recall", "T4_interference"],
+     "why": "向量+BM25+图+时序四路融合再重排——干扰题（一堆相似记忆里挑对的）"
+            "最能体现重排序精度"},
+    {"adapter": "hindsight-reflect", "paradigm": "四路检索·晚绑定",
+     "home": ["T2_consistency", "T5_longterm"],
+     "why": "读取时大模型把多条记忆合成——需要跨多条记忆综合判断的题"
+            "（人设一致性、长程多事实）才用得上合成，单事实召回纯属浪费成本"},
+    {"adapter": "hipporag2", "paradigm": "图扩散检索（接入中）",
+     "home": ["T3_update", "多跳关联（题库暂无此题型）"],
+     "why": "海马体启发：检索时在知识图上做 PageRank 扩散——擅长链式想起"
+            "（恐龙→恐龙展→博物馆→上周末）。当前题库没有多跳关联题型，"
+            "接入后大概率重演 graphiti 的主场缺席，需补题后复测"},
+]
+
+# 题型覆盖健康线：低于 minimum 即「不足」，为 0 即「缺席」
+TASK_TYPE_MINIMUM = {
+    "T1_recall": ("跨会话单事实召回", 15),
+    "T2_consistency": ("跨会话一致性", 15),
+    "T3_update": ("矛盾更新（新信息覆盖旧）", 15),
+    "T4_interference": ("干扰召回（相似记忆里挑对的）", 15),
+    "T5_longterm": ("长程抗压（几十上百条后关键记忆幸存）", 15),
+    "T6_safety": ("安全红线（危机记忆零遗漏，一票否决）", 10),
+    "T7_noise": ("脏数据鲁棒（ASR 错字/口语废话）", 10),
+}
+
+
+def build_paradigm_coverage(questions: list[dict]) -> dict:
+    """范式主场 × 当前题库覆盖 → 自动生成补题优先级建议（给出题侧）。"""
+    from collections import Counter
+    counts = Counter(q.get("task_type") for q in questions)
+
+    coverage = []
+    for t, (name, minimum) in TASK_TYPE_MINIMUM.items():
+        n = counts.get(t, 0)
+        status = "缺席" if n == 0 else ("不足" if n < minimum else "充足")
+        starved = [p["adapter"] for p in PARADIGM_HOME_GROUND
+                   if t in p["home"] and status != "充足"]
+        coverage.append({
+            "task_type": t, "name": name, "count": n,
+            "minimum": minimum, "status": status,
+            "starved_paradigms": starved,
+        })
+
+    gaps = [c for c in coverage if c["status"] != "充足"]
+    gaps.sort(key=lambda c: (c["count"], -len(c["starved_paradigms"])))
+    suggestions = [
+        f"补 {c['name']}（{c['task_type']}）：现 {c['count']} 题 / 建议 ≥{c['minimum']}。"
+        + (f"受影响范式：{('、'.join(c['starved_paradigms']))}——"
+           "它们的主场缺席，当前跑分低不能下『范式没价值』的结论"
+           if c["starved_paradigms"] else "")
+        for c in gaps
+    ]
+    return {
+        "home_ground": PARADIGM_HOME_GROUND,
+        "coverage": coverage,
+        "suggestions": suggestions,
+        "principle": "出题逻辑核心：每个记忆范式有自己的『主场题型』——只有主场题"
+                     "在场，范式差异才测得出来。榜单上某范式垫底时，先看这张表：是"
+                     "真不行，还是它的主场题没出够。",
+    }
+
+
+@router.get("/paradigm-coverage")
+def paradigm_coverage() -> dict:
+    """范式×题型覆盖地图（出题优化指南，给题库侧/博士）。"""
+    questions = _load_jsonl(_bank_paths()["jsonl"])
+    return build_paradigm_coverage(questions)

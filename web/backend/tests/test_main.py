@@ -227,3 +227,15 @@ def test_leaderboard_history(client):
         # 每个系统的 cells 与列数对齐
         for a in m["adapters"]:
             assert len(m["cells"][a]) == len(m["columns"])
+
+
+def test_paradigm_coverage(client):
+    response = client.get("/api/questionbank/paradigm-coverage")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["home_ground"]) >= 6  # 含待接入的 hipporag2
+    # T3/T5/T7 当前必然不足/缺席 → 必有补题建议
+    assert body["suggestions"]
+    statuses = {c["task_type"]: c["status"] for c in body["coverage"]}
+    assert statuses["T5_longterm"] == "缺席"
+    assert statuses["T3_update"] == "不足"

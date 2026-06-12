@@ -216,6 +216,25 @@ def build_analysis_md(questions_path: Path, runs_path: Path,
         for fi in lb["findings"]:
             add(f"- **{fi['title']}**\n  {fi['why']}")
 
+    # ---- 范式×题型覆盖（出题优化地图）
+    from .questionbank import build_paradigm_coverage
+    pc = build_paradigm_coverage(questions)
+    add("\n## 范式 × 题型覆盖（出题优化地图）")
+    add(f"\n{pc['principle']}\n")
+    add("| 题型 | 现有 | 建议 | 状态 | 主场受影响的范式 |")
+    add("|---|---|---|---|---|")
+    for c in pc["coverage"]:
+        add(f"| {c['name']} | {c['count']} | ≥{c['minimum']} | {c['status']} | "
+            f"{('、'.join(c['starved_paradigms'])) or '—'} |")
+    if pc["suggestions"]:
+        add("\n**给出题侧的补题优先级**：")
+        for i, s in enumerate(pc["suggestions"], 1):
+            add(f"{i}. {s}")
+    add("\n各范式主场依据：")
+    for h in pc["home_ground"]:
+        add(f"- **{h['adapter']}**（{h['paradigm']}）主场 {('、'.join(h['home']))}："
+            f"{h['why']}")
+
     # ---- 历史对比
     snaps = load_snapshots(runs_path)
     if snaps:
