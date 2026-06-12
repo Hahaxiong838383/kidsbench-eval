@@ -21,7 +21,7 @@ def test_architecture_overview(client):
     response = client.get("/api/architecture")
     assert response.status_code == 200
     body = response.json()
-    assert set(body["adapters"].keys()) == {"mem0", "memoryos", "graphiti", "hindsight", "reme"}
+    assert set(body["adapters"].keys()) == {"mem0", "memoryos", "graphiti", "hindsight", "reme", "letta"}
     assert body["embedding_model"]["name"] == "BAAI/bge-small-zh-v1.5"
 
 
@@ -34,7 +34,7 @@ def test_architecture_adapter_detail(client):
 
 
 def test_architecture_adapter_404(client):
-    response = client.get("/api/architecture/adapter/letta")
+    response = client.get("/api/architecture/adapter/nonexistent_sys")
     assert response.status_code == 404
 
 

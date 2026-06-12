@@ -339,6 +339,46 @@ ADAPTERS: dict = {
             "token usage 不上报（return_dict 无 usage 字段），cost_token 计 0；agentscope 必须钉 1.0.20",
         ],
     },
+    "letta": {
+        "name": "Letta（MemGPT archival 直插）",
+        "sdk": {
+            "package": "letta + letta-client",
+            "version": "0.16.8 / 1.12.1",
+            "github": "https://github.com/letta-ai/letta",
+            "install": "pip install letta letta-client（server 部署见 scripts/setup_letta_server.sh）",
+        },
+        "entry_class": {
+            "name": "LettaAdapter",
+            "file": "src/kidsbench/adapters/letta_adapter.py",
+            "line": 57,
+        },
+        "methods": [
+            _method("write", "abstract", "src/kidsbench/adapters/letta_adapter.py", 132,
+                    "archival passage 直插，tags=[turn_id] 做 native 溯源（最干净 1:1）"),
+            _method("flush", "abstract", "src/kidsbench/adapters/letta_adapter.py", 150,
+                    "passage insert 同步落库（含 embedding），无需 flush"),
+            _method("read", "abstract", "src/kidsbench/adapters/letta_adapter.py", 156,
+                    "archival search → Result(content/tags/id)，tags 原样回传"),
+            _method("clear", "abstract", "src/kidsbench/adapters/letta_adapter.py", 198,
+                    "删 agent（organization 隔离）整清 archival，下题重建"),
+            _method("consolidate", "overridable", "src/kidsbench/adapters/letta_adapter.py", 218,
+                    "archival 即时可检索，无独立 consolidate"),
+            _method("get_dependencies", "abstract", "src/kidsbench/adapters/letta_adapter.py", 251, ""),
+            _method("get_stats", "abstract", "src/kidsbench/adapters/letta_adapter.py", 273, ""),
+            _method("get_capability_profile", "abstract", "src/kidsbench/adapters/letta_adapter.py", 282, ""),
+        ],
+        "middleware_deps": [
+            "letta server（pg0 嵌入式 Postgres + deepseek custom provider，setup_letta_server.sh 一键起）",
+            "embedding_shim（bge-small-zh-v1.5，embedding_config 直传指向，512维对齐评测标准）",
+        ],
+        "storage": "Postgres（pg0 嵌入式）archival passage 向量库 + memory_blocks；agent/organization 级隔离",
+        "venv": ".venv-letta",
+        "known_issues": [
+            "0.16 server 只支持 Postgres（无 SQLite 分支）→ pg0 嵌入式 + 手动 create_all + 补 message_seq_id sequence（8 坑全记 setup_letta_server.sh）",
+            "deepseek base provider 与 v4 系列不兼容（空模型列表）→ 必走 custom openai provider 指向 api.deepseek.com",
+            "走 archival 直插路径（不用 agent 自管理回答），评测协议回答端用统一模型保一致",
+        ],
+    },
 }
 
 
@@ -478,6 +518,29 @@ MEMORY_SYSTEMS: dict = {
             "scoped_by": "user_name（逻辑隔离，delete_all 全库清）",
         },
         "deployment": "local 纯 Python 向量后端（JSONL 文件，零外部服务）；embedding 经本地 shim 对齐 bge-small-zh",
+        "real_time_stats": False,
+        "stats_source": "B0 阶段从最近 run 的 results.jsonl 抽 stats",
+    },
+    "letta_storage": {
+        "name": "Letta MemGPT archival + pg0",
+        "kind": "agentic_memory",
+        "introduction": {
+            "tldr": "MemGPT 论文的产品化（23K 星）。核心思想是让 AI agent 像操作系统管内存一样自主管理记忆——决定什么存进长期记忆、什么留在工作区。KidsBench 走它的 archival（长期向量库）直插路径，溯源是所有系统里最干净的（每条记忆带 turn 标签精确 1:1）。",
+            "problem": "传统记忆系统是被动存取，MemGPT 让 agent 主动管理——但 agent 自管理有不确定性。KidsBench 评测走 archival 直插绕开不确定性，只测它的存储/检索能力。",
+            "mechanism": [
+                "archival passage 写入：每条记忆带 tags（KidsBench 存 turn_id），入 pg0 向量库",
+                "search 检索：语义查 archival，返回的 passage 原样带回 tags → turn_id 精确溯源",
+                "memory_blocks：人设/用户画像的工作区记忆（KidsBench 评测不主用）",
+                "回答端：KidsBench 拿 passage 给统一回答模型，不用 letta agent 自己答（保评测协议一致）",
+            ],
+            "key_diff": "「agent 自主管理记忆」是 MemGPT 范式标志，与 memoryos 的分层存储构成范式内对照；archival 的 tags 溯源是六系统最干净的 native 1:1（实测 149/149 全命中）",
+        },
+        "schema": {
+            "tables": ["passages（archival 向量库）", "blocks（memory_blocks 工作区）", "agents", "messages"],
+            "fact_types": ["archival passage（长期记忆）", "memory_block（human/persona 工作区）"],
+            "scoped_by": "agent_id / organization_id（每 user 一个 agent，删 agent 整清）",
+        },
+        "deployment": "pg0 嵌入式 Postgres（server 模式，setup_letta_server.sh 一键起）；embedding 经本地 shim",
         "real_time_stats": False,
         "stats_source": "B0 阶段从最近 run 的 results.jsonl 抽 stats",
     },

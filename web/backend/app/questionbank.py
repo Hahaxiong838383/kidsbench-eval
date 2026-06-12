@@ -440,6 +440,10 @@ PARADIGM_HOME_GROUND = [
      "home": ["T2_consistency", "T4_interference"],
      "why": "agent 多轮工具循环检索——需要跨多条记忆综合判断（一致性）或"
             "从干扰里反复筛对的（干扰召回）才发挥多轮优势；单事实召回纯属浪费 agent 开销"},
+    {"adapter": "letta", "paradigm": "MemGPT 自管理记忆（archival 直插）",
+     "home": ["T1_recall", "T2_consistency"],
+     "why": "archival 是纯向量检索（无 reranker、无多轮），跨会话单事实召回/一致性"
+            "保持是基本盘；与 memoryos 分层存储构成范式内对照（同范式交叉验证库代码 vs 范式）"},
     {"adapter": "hipporag2", "paradigm": "图扩散检索（接入中）",
      "home": ["T3_update", "多跳关联（题库暂无此题型）"],
      "why": "海马体启发：检索时在知识图上做 PageRank 扩散——擅长链式想起"

@@ -331,6 +331,7 @@ ADAPTER_PLAIN = {
     "hindsight-recall": "四路检索·早绑定：写入时深加工，读取纯检索零大模型调用",
     "hindsight-reflect": "四路检索·晚绑定：读取时再用大模型把记忆合成成答案素材，成本最高",
     "reme": "agentic 多轮检索·晚绑定变体：小 agent 反复查记忆边查边想再综合，中文原生，召回最全",
+    "letta": "MemGPT 自管理记忆·archival 直插：agent 像管内存一样管记忆，溯源最干净（tags 精确 1:1）",
 }
 
 
