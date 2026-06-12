@@ -27,9 +27,7 @@ export default function System() {
         <h2 className="text-lg font-semibold mb-3">模型配置</h2>
         {arch && (
           <>
-            <KV k="LLM" v={`${arch.llm_model.name} · ${arch.llm_model.provider}`} />
-            <KV k="LLM endpoint" v={<code className="font-mono text-xs">{arch.llm_model.endpoint}</code>} />
-            <KV k="LLM reasoning" v={arch.llm_model.reasoning_effort} />
+            {/* LLM 行已删（gemini-3.5 弃用）：评测 LLM 看 LLM Preset 页 */}
             <KV k="Embedding" v={`${arch.embedding_model.name} · ${arch.embedding_model.dim}d · ${arch.embedding_model.size_mb}MB`} />
             <KV k="非对称模型" v={arch.embedding_model.is_asymmetric ? "是（Query 需 instruction，B0 未加，见 EMBEDDING_KNOWN_ISSUES.md）" : "否"} />
           </>

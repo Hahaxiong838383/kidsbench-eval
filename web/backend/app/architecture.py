@@ -68,7 +68,7 @@ _MEM0_FILE = "src/kidsbench/adapters/mem0_adapter.py"
 _MEM0_METHODS = [
     _method("write", "abstract", _MEM0_FILE, 137,
         "Turn → mem0 messages 格式 → self.client.add(messages, user_id) → "
-        "mem0 内部 LLM (gemini-3.5-flash) 抽取 facts → "
+        "mem0 内部 LLM（跟随评测 preset 注入，当前 deepseek-v4-flash）抽取 facts → "
         "facts 经 embedding (bge-small-zh-v1.5, 512d) 入 Qdrant collection"),
     _method("read", "abstract", _MEM0_FILE, 236,
         "query 经 embedding 转 512d 向量 → Qdrant cosine 召回 top-k → "
@@ -692,12 +692,8 @@ def get_architecture() -> dict:
             "max_tokens": 512,
             "is_asymmetric": True,
         },
-        "llm_model": {
-            "name": "gemini-3.5-flash",
-            "provider": "GEMINI_PROXY",
-            "endpoint": "http://23.226.135.149:4000/v1",
-            "reasoning_effort": "minimal (default for adapter LLM calls)",
-        },
+        # llm_model 块已删（2026-06-12 川哥指令）：gemini-3.5 已弃用，
+        # 评测 LLM 跟随 --llm-preset（当前 deepseek-v4-flash），详见 LLM Preset 页
     }
 
 

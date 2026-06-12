@@ -76,12 +76,6 @@ export interface ArchitectureIndex {
     max_tokens: number;
     is_asymmetric: boolean;
   };
-  llm_model: {
-    name: string;
-    provider: string;
-    endpoint: string;
-    reasoning_effort: string;
-  };
 }
 
 export interface RunGroup {
