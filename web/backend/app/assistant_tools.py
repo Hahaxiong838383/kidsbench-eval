@@ -21,9 +21,17 @@ from pathlib import Path
 
 from .config import RUNS_PATH
 
-_REPO_ROOT = Path(
-    os.environ.get("KIDSBENCH_REPO_ROOT", str(Path(__file__).resolve().parents[3]))
-).resolve()
+def _detect_repo_root() -> Path:
+    """env 优先；本地布局回退 parents[3]。注意不能写成 environ.get(k, default)
+    ——default 表达式会被急切求值，容器扁平布局下 parents[3] 直接 IndexError
+    （部署实战炸过，2026-06-12）。"""
+    env_root = os.environ.get("KIDSBENCH_REPO_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    return Path(__file__).resolve().parents[3]
+
+
+_REPO_ROOT = _detect_repo_root()
 DOC_WHITELIST: dict[str, str] = {
     "评测范式研究": "docs/EVAL_PARADIGM_RESEARCH.md",
     "harness接口规范": "docs/HARNESS_INTERFACE_SPEC.md",
