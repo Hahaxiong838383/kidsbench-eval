@@ -201,6 +201,72 @@ def make_memoryos_adapter(
     return MemoryOSAdapter(config=config)
 
 
+
+_EMBEDDING_SHIM_PROC = None
+
+
+def _ensure_embedding_shim(port: int = 18230) -> str:
+    """起本地 embedding shim（bge-small-zh-v1.5 → OpenAI /v1/embeddings）。
+
+    为什么存在：部分被测系统（ReMe）只支持 API 形态 embedding，评测标准
+    要求全员统一本地 bge-small-zh-v1.5——shim 让 API-only 系统对齐标准。
+    单例子进程，healthz 就绪后返回 base_url。
+    """
+    global _EMBEDDING_SHIM_PROC
+    import subprocess
+    import urllib.request
+
+    base = f"http://127.0.0.1:{port}"
+    def _alive() -> bool:
+        try:
+            with urllib.request.urlopen(f"{base}/healthz", timeout=2) as r:
+                return r.status == 200
+        except Exception:
+            return False
+
+    if _alive():
+        return f"{base}/v1"
+    venv_py = str(REPO_ROOT / ".venv" / "bin" / "python")
+    _EMBEDDING_SHIM_PROC = subprocess.Popen(
+        [venv_py, "-m", "kidsbench.middleware.embedding_shim", "--port", str(port)],
+        cwd=str(REPO_ROOT),
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
+    )
+    # 首次加载模型可能 ~30s
+    for _ in range(60):
+        if _alive():
+            return f"{base}/v1"
+        time.sleep(1)
+    raise RuntimeError("embedding shim 启动超时（60s）——检查 .venv 的 sentence-transformers")
+
+
+def make_reme_adapter(preset: LLMPreset) -> MemoryAdapter | None:
+    """如果 .venv-reme 可用就返 RemeAdapter（需本地 embedding shim）。"""
+    try:
+        import reme  # noqa: F401
+
+        from kidsbench.adapters.reme_adapter import RemeAdapter
+    except (ImportError, ModuleNotFoundError):
+        return None
+
+    shim_url = _ensure_embedding_shim()
+    return RemeAdapter(config={
+        "llm": {
+            "model": preset.model,
+            "base_url": preset.base_url,
+            "api_key": preset.get_api_key(),
+        },
+        "embedding": {
+            "model": preset.embedding.model,
+            "base_url": shim_url,
+            "api_key": "local-shim",
+            "dimensions": preset.embedding.dim,
+        },
+        "working_dir": "/tmp/kidsbench_reme_eval",
+    })
+
+
 def make_graphiti_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     """如果 .venv-graphiti 可用 + FalkorDB 隧道在，返回 GraphitiAdapter；否则 None。
 
@@ -974,6 +1040,12 @@ def main() -> int:
         help="断点续跑：读已有 results.jsonl，跳过已完成的 (adapter,qid)，追加写（防中断从头跑）。",
     )
     parser.add_argument(
+        "--include-reme",
+        action="store_true",
+        help="是否跑 RemeAdapter（需 .venv-reme：pip install reme-ai agentscope==1.0.20；"
+        "embedding 经本地 shim 对齐 bge-small-zh）",
+    )
+    parser.add_argument(
         "--skip-baselines",
         action="store_true",
         help="跳过 nomemory/fullhistory/oracle 基线（多 venv 分批跑时基线只需跑一次，"
@@ -1037,6 +1109,12 @@ def main() -> int:
             print("[harness] memoryos 不可用（未装 memoryos package），跳过", flush=True)
         else:
             adapters["memoryos"] = memoryos
+    if args.include_reme:
+        reme_a = make_reme_adapter(preset)
+        if reme_a is None:
+            print("[harness] reme 不可用（未装 reme-ai），跳过", flush=True)
+        else:
+            adapters["reme"] = reme_a
     if args.include_graphiti:
         graphiti = make_graphiti_adapter(preset)
         if graphiti is None:

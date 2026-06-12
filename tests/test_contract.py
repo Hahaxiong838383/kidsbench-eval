@@ -11,6 +11,7 @@ from collections.abc import Callable
 import pytest
 
 from kidsbench.adapters import (
+    RemeAdapter,
     FullHistoryAdapter,
     GraphitiAdapter,
     HindsightAdapter,
@@ -286,6 +287,60 @@ def make_hindsight_reflect() -> HindsightAdapter:
     return HindsightAdapter(mode="reflect", client=_HindsightContractClient())
 
 
+
+
+class _RemeContractClient:
+    """契约测试用 Mock ReMe client（镜像 reme-ai 0.3.1.10 async 签名）。
+
+    行为对齐 Phase 0 实测（docs/REME_VERIFIED_FACTS.md）：
+    summarize_memory 从 messages 抽记忆（node 带 message_time，模拟 LLM 抄时间标注）、
+    retrieve_memory(return_dict=True) 返回 answer + retrieved_nodes、
+    delete_all 无参全清、**kwargs 自定义字段不回传（实测）。
+    """
+
+    def __init__(self) -> None:
+        self._nodes: list[dict] = []
+        self._counter = 0
+
+    async def start(self) -> None:
+        return None
+
+    async def summarize_memory(self, messages, user_name="", **kw):
+        for m in messages:
+            self._counter += 1
+            self._nodes.append({
+                "memory_id": f"rm_{self._counter:03d}",
+                "memory_type": "personal",
+                "memory_target": user_name,
+                "content": f"记忆：{m['content']}",
+                "message_time": m.get("time_created", ""),
+                "ref_memory_id": "",
+                "score": 0.0,
+                "vector": [0.1] * 8,
+            })
+        return {"answer": "已总结", "success": True}
+
+    async def retrieve_memory(self, query="", user_name="", retrieve_top_k=20,
+                              return_dict=False, **kw):
+        nodes = [dict(n, score=0.8) for n in self._nodes
+                 if n["memory_target"] == user_name][:retrieve_top_k]
+        payload = {
+            "answer": "综合记忆的回答" if nodes else "",
+            "success": True,
+            "retrieved_nodes": nodes,
+        }
+        return payload if return_dict else payload["answer"]
+
+    async def delete_all(self):
+        self._nodes = []
+
+    async def close(self) -> None:
+        return None
+
+
+def make_reme() -> RemeAdapter:
+    return RemeAdapter(client=_RemeContractClient())
+
 ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "nomemory": make_nomemory,
     "fullhistory": make_fullhistory,
@@ -295,6 +350,7 @@ ADAPTER_FACTORIES: dict[str, Callable[[], MemoryAdapter]] = {
     "graphiti": make_graphiti,
     "hindsight-recall": make_hindsight_recall,
     "hindsight-reflect": make_hindsight_reflect,
+    "reme": make_reme,
 }
 
 

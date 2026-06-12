@@ -18,12 +18,14 @@ from .mem0_adapter import Mem0Adapter
 from .memoryos_adapter import MemoryOSAdapter
 from .nomemory import NoMemoryAdapter
 from .oracle import OracleAdapter
+from .reme_adapter import RemeAdapter
 
 __all__ = [
     # 基线（不依赖第三方）
     "FullHistoryAdapter",
     "NoMemoryAdapter",
     "OracleAdapter",
+    "RemeAdapter",
     # Wave 1 第三方（按需 extras 安装）
     "Mem0Adapter",
     "MemoryOSAdapter",
