@@ -124,6 +124,7 @@ class RemeAdapter(MemoryAdapter):
         self._buffers: dict[str, list[Turn]] = {}
         # 溯源主路映射：user_id → {message_time 字符串: turn_id}
         self._ts_index: dict[str, dict[str, str]] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
 
     # ------------------------------------------------------------ client
 
@@ -156,6 +157,9 @@ class RemeAdapter(MemoryAdapter):
                     "dimensions": emb.get("dimensions", 512),
                 },
                 default_vector_store_config={"backend": "local"},
+                # codex 对抗审必修 #3：profile 是文件系统存储，delete_all
+                # 清不到，跨题残留会混进 agentic answer——评测关掉
+                enable_profile=False,
             )
         if not self._started:
             start = getattr(self._client, "start", None)
@@ -266,10 +270,11 @@ class RemeAdapter(MemoryAdapter):
     def clear(self, user_id: str) -> ClearStats:
         """物理清场：delete_all（全库，评测每题串行无碰撞）+ 缓存/映射清。"""
         t0 = time.perf_counter()
-        deleted = 0
-        if self._client is not None and self._started:
-            self._run(self._client.delete_all())
-            deleted = 1  # ReMe delete_all 不返回计数，标记执行过
+        # codex 对抗审必修 #2：clear 必须强制启动后物理清——
+        # 首题 client 未启动时跳过 delete_all，会让上一进程残留污染首题
+        client = self._ensure_client()
+        self._run(client.delete_all())
+        deleted = 1  # ReMe delete_all 不返回计数，标记执行过
         self._buffers.pop(user_id, None)
         self._ts_index.pop(user_id, None)
         return ClearStats(
@@ -350,24 +355,33 @@ class RemeAdapter(MemoryAdapter):
             text_nature="extracted",
         )
 
+    def _ensure_loop(self) -> asyncio.AbstractEventLoop:
+        """持久后台 event loop（codex 对抗审必修 #1）。
+
+        ReMe 内部持有 loop 绑定资源（httpx AsyncClient 连接池）——每次调用
+        新开 loop 会触发 attached-to-different-loop / closed-loop 类故障。
+        全部 async 调用 run_coroutine_threadsafe 投递到同一常驻 loop，
+        异常原样传播（旧实现子线程异常被吞、flush 静默假成功）。
+        """
+        if self._loop is None or self._loop.is_closed():
+            loop = asyncio.new_event_loop()
+
+            def runner() -> None:
+                asyncio.set_event_loop(loop)
+                loop.run_forever()
+
+            t = threading.Thread(target=runner, daemon=True, name="reme-loop")
+            t.start()
+            self._loop = loop
+        return self._loop
+
     def _run(self, result: Any) -> Any:
-        """同步桥接 ReMe 的 async API（沿用 graphiti adapter 的四级降级）。"""
+        """同步桥接：投递到持久 loop，异常原样抛出。"""
         if not inspect.isawaitable(result):
             return result
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            return asyncio.run(result)
-        # 已在 loop 内（pytest-asyncio 等）：独立线程跑新 loop
-        out: dict[str, Any] = {}
-
-        def runner() -> None:
-            out["value"] = asyncio.run(result)
-
-        t = threading.Thread(target=runner, daemon=True)
-        t.start()
-        t.join()
-        return out.get("value")
+        loop = self._ensure_loop()
+        future = asyncio.run_coroutine_threadsafe(result, loop)
+        return future.result(timeout=600)
 
     # ------------------------------------------------------------ 白盒接口
 
@@ -410,7 +424,7 @@ class RemeAdapter(MemoryAdapter):
 
         caps_map = {
             "physical_clear": ("native", "delete_all 全库清（实测归零）；无按 user 删，评测串行无碰撞"),
-            "turn_id_traceback": ("wrapped", "message_time→turn_id 映射反查（LLM 抄时间标注）；失配 fallback 节点自带 vector 辅路"),
+            "turn_id_traceback": ("wrapped", "message_time→turn_id 映射反查（smoke 实测 12/12 命中）；节点 vector 已填 source_embedding 但 harness 未实装 cosine 反查——主路失配时该题归因归零（如实声明）"),
             "cognitive_type_filter": ("declared", "memory_type personal/task/tool 三类，非认知类型"),
             "score_normalized": ("native", "节点 score 为相似度，已在 [0,1]（实测 0.47）"),
             "concurrent_safe": ("declared", "user_name 逻辑隔离，vector store 共享（delete_all 全清）"),

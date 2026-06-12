@@ -227,12 +227,14 @@ def _ensure_embedding_shim(port: int = 18230) -> str:
     if _alive():
         return f"{base}/v1"
     venv_py = str(REPO_ROOT / ".venv" / "bin" / "python")
+    import atexit
     _EMBEDDING_SHIM_PROC = subprocess.Popen(
         [venv_py, "-m", "kidsbench.middleware.embedding_shim", "--port", str(port)],
         cwd=str(REPO_ROOT),
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         env={**os.environ, "PYTHONPATH": str(REPO_ROOT / "src")},
     )
+    atexit.register(lambda: _EMBEDDING_SHIM_PROC and _EMBEDDING_SHIM_PROC.terminate())
     # 首次加载模型可能 ~30s
     for _ in range(60):
         if _alive():
@@ -263,7 +265,8 @@ def make_reme_adapter(preset: LLMPreset) -> MemoryAdapter | None:
             "api_key": "local-shim",
             "dimensions": preset.embedding.dim,
         },
-        "working_dir": "/tmp/kidsbench_reme_eval",
+        # working_dir 按进程唯一（codex 对抗审 #2：跨 run 残留防护第二道）
+        "working_dir": f"/tmp/kidsbench_reme_eval_{os.getpid()}",
     })
 
 
