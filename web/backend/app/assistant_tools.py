@@ -40,11 +40,16 @@ DOC_WHITELIST: dict[str, str] = {
     "题库修复说明": "docs/QUESTIONBANK_V01_FIX_NOTES.md",
     "能力矩阵": "docs/CAPABILITY_MATRIX.md",
     "新系统接入清单": "docs/NEW_SYSTEM_CHECKLIST.md",
+    "助手同步清单": "docs/ASSISTANT_SYNC_CHECKLIST.md",
     "reme核实事实": "docs/REME_VERIFIED_FACTS.md",
     "letta核实事实": "docs/LETTA_VERIFIED_FACTS.md",
     "hindsight核实事实": "docs/HINDSIGHT_VERIFIED_FACTS.md",
+    "memmachine核实事实": "docs/MEMMACHINE_VERIFIED_FACTS.md",
+    "memobase核实事实": "docs/MEMOBASE_VERIFIED_FACTS.md",
+    "cognee核实事实": "docs/COGNEE_VERIFIED_FACTS.md",
     "web平台规范": "docs/WEB_PLATFORM_SPEC.md",
     "助手方案": "docs/ASSISTANT_PROPOSAL.md",
+    "题库上传契约": "docs/BANKS_API_CONTRACT.md",
 }
 
 _DOC_CHAR_LIMIT = 24000  # 单文档注入上限，防一次塞爆上下文
