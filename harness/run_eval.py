@@ -520,12 +520,16 @@ def make_cognee_adapter(preset: LLMPreset) -> MemoryAdapter | None:
     if not gemini_key:
         print("[harness] cognee 需要 KIDSBENCH_GEMINI_API_KEY（gemini proxy），跳过", flush=True)
         return None
+    # KIDSBENCH_COGNEE_NO_PRUNE=1 → clear 不每题 prune（规避死锁，靠 dataset 隔离）。
+    # 默认不设=保持每题 prune（与已跑全量一致），待 smoke A/B 验证无污染后再切默认。
+    prune_per_clear = os.environ.get("KIDSBENCH_COGNEE_NO_PRUNE", "") != "1"
     return CogneeAdapter(config={
         "llm_model": "openai/gemini-2.5-flash",
         "llm_endpoint": "http://23.226.135.149:4000/v1",
         "llm_api_key": gemini_key,
         "embedding_endpoint": shim_url,
         "embedding_dim": preset.embedding.dim,
+        "prune_per_clear": prune_per_clear,
     })
 
 

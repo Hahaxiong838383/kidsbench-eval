@@ -119,6 +119,10 @@ class CogneeAdapter(MemoryAdapter):
         self._stats = {"total_writes": 0, "total_reads": 0, "dedup_hits": 0}
         self._setup_done = False
         self._loop: Any = None  # 持久 event loop（见 _run docstring）
+        # prune_per_clear=True（默认）：每题 clear 全局 prune（与已跑的全量一致）。
+        # =False：clear 只清进程内 seen，靠 per-user dataset 名隔离，整 run 不 prune
+        #   ——规避「删库→连接腐蚀→~30 题死锁」（GitHub #2840/#2902/#2997，team 定位）。
+        self._prune_per_clear: bool = bool(self._config.get("prune_per_clear", True))
 
     # ------------------------------------------------------------ cognee
 
@@ -155,6 +159,9 @@ class CogneeAdapter(MemoryAdapter):
             "GRAPH_DATABASE_PROVIDER": "kuzu",
             "VECTOR_DB_PROVIDER": "lancedb",
             "ENABLE_BACKEND_ACCESS_CONTROL": "false",
+            # 关遥测：cognee 默认 phone home 到 test.prometh.ai，被墙/SSL EOF 时
+            # 失败冒泡成 write error（w3 no-prune smoke 实战 12/12 全 error 根因）
+            "TELEMETRY_DISABLED": "1",
         }
         if c.get("llm_api_key"):
             env["LLM_API_KEY"] = c["llm_api_key"]
@@ -281,12 +288,16 @@ class CogneeAdapter(MemoryAdapter):
     @track_metrics(method="clear")
     @wrap_errors(mapping=_ERROR_MAPPING)
     def clear(self, user_id: str) -> ClearStats:
-        """prune 全局物理删（无 dataset 局部 prune；评测协议逐题全清+重建）。"""
+        """物理清场。两模式（见 __init__ self._prune_per_clear）：
+        - True（默认）：prune 全局物理删（评测协议逐题全清+重建，但每题删库→连接腐蚀→死锁）
+        - False：只清进程内 seen，隔离靠 per-user dataset 名 + search(datasets=[...]) 过滤，
+          整 run 不 prune（规避死锁）。安全性由 smoke A/B 验证（无跨题污染）。"""
         t0 = time.perf_counter()
         n_seen = len(self._seen.pop(user_id, set()))
-        cognee = self._ensure_cognee()
-        self._run(cognee.prune.prune_data())
-        self._run(cognee.prune.prune_system(metadata=True))
+        if self._prune_per_clear:
+            cognee = self._ensure_cognee()
+            self._run(cognee.prune.prune_data())
+            self._run(cognee.prune.prune_system(metadata=True))
         return ClearStats(
             success=True, latency_ms=(time.perf_counter() - t0) * 1000,
             deleted_count=n_seen,
