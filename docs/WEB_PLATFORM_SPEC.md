@@ -81,15 +81,39 @@ Air harness 跑题
 |---|---|---|---|
 | **B0** | 架构白盒展示（看现状）| 1.5d | 跑过本地，QNAP 部署 |
 | **B1** | Pipeline 时间线 + 历史 run 回放 | 2d | B0 + 实时事件流通 |
-| **B2** | 题库 CRUD（SQLite + 编辑器）| 2d | B1 + DB 接入 harness |
+| **B2** | 题库 CRUD（SQLite + 编辑器）+ 记忆图谱可视化·轻量版（见 §3.1）| 2d + 1.5d | B1 + DB 接入 harness |
 | **B3** | 触发跑题（webhook + B3 控制台）| 1.5d | B2 + Air webhook 通 |
-| **合计** | | **7d** | |
+| **合计** | | **8.5d** | |
 
 每阶段交付物详见各阶段独立 plan：
 - B0 → `docs/WEB_PLATFORM_PHASE_B0.md`
 - B1 → 待 B0 完成后写
 - B2 → 待 B1 完成后写
 - B3 → 待 B2 完成后写
+
+### 3.1 B2 候选需求：记忆图谱可视化（2026-06-13 川哥拍板进 B2）
+
+**动机**：图谱类记忆系统（graphiti / cognee）的范式价值在榜单分数里不可见——
+「机制真起作用」和「碰巧向量召回对了」分数可能一样。把检索路径画出来
+（团子→宠物店→猫爬架，2-hop 命中）是范式差异的唯一直观证明；图的病理
+（实体分裂如「团子」vs「Tuanzi」、碎片化、孤岛、超级节点）肉眼可诊断，
+直接生成自研设计原则——服务「反推设计原则」北极星，比分数更有信息量。
+
+**关键设计判断：抓快照，不做实时查询**。评测协议逐题清场（cognee kuzu 每题
+prune、graphiti 同理），事后查库图已不存在。必须在 **read 时刻**把图快照抓进
+run 产物——快照 = 「回答那一刻系统脑子里的图」，与答案严格对应、可审计。
+载体复用 B1 trace 基建（pipeline.jsonl span 模型），新增 `graph_snapshot` span：
+`{nodes:[{id,name,type}], edges:[{src,dst,rel}], seed_ids:[], hit_path:[]}`。
+
+**轻量版（B2 落地，~1.5d）**：
+- adapter 侧：graphiti / cognee 各 ~50 行，read 时导出检索 seed 周边 top-N 子图
+  （cognee：kuzu 查询；graphiti：FalkorDB cypher）；mem0 entity store 可出简化版
+- 前端：题目详情页加「记忆图谱」tab，力导向图（React Flow / Cytoscape），
+  高亮 seed 节点与命中路径；无图系统显示「该范式无图谱」——本身就是范式对比展示点
+
+**进阶版（T3/多跳题型补齐后再做，+2d）**：
+- 矛盾更新题「图演化对比」：写入前/后双快照 diff（旧边标红、新边标绿）
+- 跨题实体统计：碎片率/孤岛率作为图谱健康指标进榜单
 
 ---
 
