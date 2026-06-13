@@ -57,6 +57,7 @@ episodic_memory:
   short_term_memory: {llm_model: openai_model, message_capacity: 500}
 retrieval_agent: {llm_model: openai_model}
 semantic_memory:
+  enabled: false  # 评测只测 episodic 真值保存；semantic 每条写入调 LLM，慢且放大 LLM 偶发失败成 write 500（w3 全量实战）
   llm_model: openai_model
   embedding_model: openai_embedder
   database: profile_storage

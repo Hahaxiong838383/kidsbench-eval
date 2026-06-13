@@ -45,3 +45,17 @@
 - Phase 2 adapter：write=add(text, dataset, node_set=[turn_id])（content hash 查重）→ 题末统一 cognify(custom_prompt=ZH_PROMPT)；read=search(GRAPH_COMPLETION, neighborhood_depth=2) + CHUNKS 对照；clear=prune 全清 + setup 重建；monkey patch 装载在 adapter setup
 - 范式登记：**pipeline 双库多跳（vector seed + k-hop 邻域投影）**，主场 = 多跳联想/干扰召回；与 graphiti 范式内对照
 - ⚠️ 能力矩阵如实标注：溯源 wrapped 弱 / 虚拟时钟 declared 受限 / token simulated
+
+## Phase 3 全量实测（2026-06-13，v01_full_cognee 149 题）
+
+**成绩：avg_score 0.292（第 12）/ correct 18 / wrong 16 / evasive 115 / error 0**。
+- 解读：多跳邻域投影主场 = 多跳联想/干扰召回，题库暂无多跳题型，发挥不出（同 graphiti）；
+  wrong 16 偏高（图谱合成易过度联想），符合「无源引用、溯源最弱」的范式代价。
+- ★ **两个故障的评测侧治法（team 定位，GitHub #2840/#2902/#2997 已知未修上游 bug）**：
+  - **error 根因=遥测**：cognee 默认 phone home `test.prometh.ai`，被墙 SSL EOF → 冒泡成
+    write error。修：`TELEMETRY_DISABLED=1`（之前误判为死锁 500，实测全量 error 100% 是遥测）。
+  - **hang 根因=每题 prune**：prune 删库腐蚀 kuzu/lancedb 连接，~30 题死锁（0%CPU 无网络）。
+    修：`prune_per_clear=False`（KIDSBENCH_COGNEE_NO_PRUNE=1），靠 per-user dataset 隔离不每题清。
+    A/B smoke 验证无污染（2/12 差异属保守方向，不虚高）。
+  - **结论：cognee 跑全量必须 TELEMETRY_DISABLED=1 + no-prune，否则 hang+error 双发**。
+  - 接入 commit：adapter+harness `a9b9b5ba`。no-prune 模式 83→149 平推零 hang 零 error 实证治本。

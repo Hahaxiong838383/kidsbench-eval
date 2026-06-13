@@ -40,3 +40,13 @@
 - Phase 2 adapter：write=POST /memories（metadata.turn_id + timestamp=虚拟时间，写前查重）；read=search 取 STM∪LTM 并集（带 score）；clear=delete project + 每题独立 project_id；flush=写路径同步无需额外动作
 - Phase 2 契约测试必做（codex 对抗审 P0 采纳）：STM∪LTM 并集在**运行中**（非重启后）的排序/去重/冲突语义专项测试；清场后 vector 表 orphan 残留审计
 - 范式登记：**真值保存（原文+句级索引，immutable ledger）**，主场 = T3 矛盾更新（无损上下文对照）+ 脏数据/抗幻觉类
+
+## Phase 3 全量实测（2026-06-13，v01_full_memmachine 149 题）
+
+**成绩：avg_score 0.516（榜首）/ correct 48 / wrong 3 / evasive 98 / error 0**。
+- **登顶解读（范式发现，非「最强」）**：当前题库以基础召回为主，「写入时什么都不丢」的
+  真值保存策略吃满红利——还没有 T5 长程压力题来惩罚「不做整理/不压缩」。补长程题后
+  预计回落，这个「随题型变化的排名」本身是干净的设计原则证据。
+- 工程实测：semantic_memory 必须 `enabled: false`（每条写入偷调 LLM 抽 profile，慢且
+  放大 LLM 偶发失败成 write 500，w3 全量实战 12/12 全灭）；全 SQLite 零外部服务稳定跑完 149。
+- 接入 commit：adapter `b1975f5a`（5 bug 修）；harness 三工厂 + httpx。

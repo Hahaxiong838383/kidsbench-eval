@@ -38,3 +38,10 @@
 - Phase 1：把「pg0+redis+源码 uvicorn」固化成 `scripts/setup_memobase_server.sh`（仿 letta 脚本）；评测 config：`language: zh` + `enable_event_embedding: true` 指向本地 shim + `max_chat_blob_buffer_token_size: 8192`
 - Phase 2 adapter：write=insert(ChatBlob, created_at=虚拟时间) 逐题批；flush=flush(sync=True)；read=`context(chats=[当前问题])` 或 profile+search_event 组合；clear=delete_user（每题独立 user）；溯源走 wrapped（时间标记反查）；写前查重防 event 重复
 - 范式登记：**profile-centric 画像中心**（属性+事件双层异步提取），主场 = T5 长程画像一致性 + 兴趣演化类
+
+## Phase 3 全量实测（2026-06-13，v01_full_memobase 149 题）
+
+**成绩：avg_score 0.377（第 10）/ correct 26 / wrong 10 / evasive 113 / error 0**。
+- 中下游解读：画像中心范式主场 = T5 长程画像一致性 + 兴趣演化，当前题库**主场缺席**
+  （同 graphiti 时序图谱），基础召回题发挥不出画像优势。补长程题后复测。
+- 工程实测：flush(sync=True) 同步画像抽取（~14s/批）稳定；中文原生零 patch；149 题零 error。
