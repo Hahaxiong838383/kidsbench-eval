@@ -9,6 +9,7 @@ import GroupDetail from "./pages/GroupDetail";
 import LiveRun from "./pages/LiveRun";
 import LLMPresets from "./pages/LLMPresets";
 import QuestionBank from "./pages/QuestionBank";
+import Banks from "./pages/Banks";
 import Runs from "./pages/Runs";
 import System from "./pages/System";
 import Admin from "./pages/Admin";
@@ -23,6 +24,7 @@ export default function App() {
         <Route path="memory" element={<MemoryIndex />} />
         <Route path="memory/:name" element={<MemoryDetail />} />
         <Route path="questionbank" element={<QuestionBank />} />
+        <Route path="banks" element={<Banks />} />
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:group" element={<GroupDetail />} />
         <Route path="live" element={<LiveRun />} />

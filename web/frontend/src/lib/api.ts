@@ -12,6 +12,9 @@ import type {
   PipelineResponse,
   RunGroup,
   StateSnapshot,
+  BankDetail,
+  BankListResponse,
+  BankCli,
 } from "./types";
 
 async function get<T>(path: string): Promise<T> {
@@ -84,4 +87,23 @@ export const api = {
         mtime: number;
       }[];
     }>("/api/runs/latest"),
+
+  // ===== Banks (题库上传) =====
+  listBanks: () => get<BankListResponse>("/api/banks"),
+  getBank: (version: string) =>
+    get<BankDetail>(`/api/banks/${encodeURIComponent(version)}`),
+  getBankCli: (version: string, adapters: string[]) => {
+    const q = new URLSearchParams({ adapters: adapters.join(",") });
+    return get<BankCli>(`/api/banks/${encodeURIComponent(version)}/cli?${q.toString()}`);
+  },
+  uploadBank: async (file: File): Promise<BankDetail> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const res = await fetch("/api/banks/upload", { method: "POST", body: fd });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.detail ?? body?.message ?? `${res.status}`);
+    }
+    return body as BankDetail;
+  },
 };

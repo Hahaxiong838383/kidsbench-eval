@@ -209,3 +209,54 @@ export interface AdminUsagePoint {
 export interface AdminSettings {
   [key: string]: string;
 }
+
+// ===== Banks (题库上传) 契约对齐 =====
+export interface BankSummary {
+  version: string;
+  created_at: string;
+  question_count: number;
+  issues_count: number;
+  status: string;
+  original_filename: string;
+}
+
+export interface BankHealth {
+  total_rows: number;
+  healthy: number;
+  dropped_redline: number;
+  skipped: number;
+}
+
+export interface BankIssue {
+  qid: string;
+  kind: string;
+  detail: string;
+}
+
+export interface BankDetail {
+  version: string;
+  question_count: number;
+  issues_count: number;
+  task_type_dist: Record<string, number>;
+  issues: BankIssue[];
+  health: BankHealth;
+  created_at: string;
+  original_filename: string;
+}
+
+export interface BankListResponse {
+  banks: BankSummary[];
+}
+
+export interface BankCliEst {
+  adapters: number;
+  questions: number;
+  minutes_rough: string;
+  warn?: string;
+}
+
+export interface BankCli {
+  command: string;
+  note?: string;
+  est: BankCliEst;
+}
