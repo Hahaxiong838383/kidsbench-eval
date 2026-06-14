@@ -91,17 +91,22 @@ export default function Layout() {
 
           {/* 手动同步按钮：dev198 源时显示，点一下让 QNAP 后端 pull 一次 dev198 的 runs */}
           {effectiveSource === "dev198" && (
-            <button
-              type="button"
-              onClick={handleSync}
-              disabled={syncing}
-              title="从 dev198 工作站拉取最新 runs 到 web"
-              className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <span className={syncing ? "animate-spin" : ""}>⟳</span>
-              <span>{syncing ? "同步中…" : "同步"}</span>
-              {syncMsg && <span className="text-slate-400 ml-1">{syncMsg}</span>}
-            </button>
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={handleSync}
+                disabled={syncing}
+                className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <span className={syncing ? "animate-spin" : ""}>⟳</span>
+                <span>{syncing ? "同步中…" : "同步"}</span>
+                {syncMsg && <span className="text-slate-400 ml-1">{syncMsg}</span>}
+              </button>
+              {/* 使用说明：hover 按钮时在底下弹出 */}
+              <div className="absolute top-full right-0 mt-1 hidden group-hover:block z-20 w-60 rounded border border-slate-200 bg-white px-3 py-2 text-[11px] leading-relaxed text-slate-500 shadow-md">
+                点一下，rsync 从 dev198 主动拉一次最新 runs，整页刷新看最新结果。预计 1–2 秒（数据量大时更久）。
+              </div>
+            </div>
           )}
         </div>
       </nav>
