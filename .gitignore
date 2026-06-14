@@ -61,3 +61,4 @@ docker/volumes/
 data/uploads/
 !runs/history/
 web/qnap/assistant.env
+data/*.db
