@@ -63,3 +63,4 @@ data/uploads/
 web/qnap/assistant.env
 data/*.db
 web/qnap/.qnap-pass
+web/qnap/.web-auth
