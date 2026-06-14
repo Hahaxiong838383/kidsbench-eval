@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { useSource } from "../lib/sourceContext";
 import type {
   AdapterStats,
   ExperimentRow,
@@ -33,6 +34,7 @@ interface GroupDetail {
 
 export default function GroupDetail() {
   const { group } = useParams<{ group: string }>();
+  const { source } = useSource();
   const [data, setData] = useState<GroupDetail | null>(null);
   const [pipelines, setPipelines] = useState<PipelineListItem[]>([]);
   const [err, setErr] = useState<string | null>(null);
@@ -43,14 +45,14 @@ export default function GroupDetail() {
     setData(null);
     setErr(null);
     api
-      .runGroup(group)
+      .runGroup(group, source)
       .then((d) => setData(d as GroupDetail))
       .catch((e) => setErr(String(e)));
     api
-      .listPipelines(group)
+      .listPipelines(group, source)
       .then((r) => setPipelines(r.pipelines))
       .catch(() => setPipelines([]));
-  }, [group]);
+  }, [group, source]);
 
   if (err) return <div className="text-rose-600">载入失败：{err}</div>;
   if (!data) return <div className="text-slate-500">载入中…</div>;
@@ -132,6 +134,7 @@ export default function GroupDetail() {
                     hasPipeline={hasPipeline}
                     onToggle={() => setExpanded(isExpanded ? null : key)}
                     group={data.name}
+                    source={source}
                   />
                 );
               })}
@@ -150,6 +153,7 @@ function Row({
   hasPipeline,
   onToggle,
   group,
+  source,
 }: {
   row: ExperimentRow;
   rowKey: string;
@@ -157,6 +161,7 @@ function Row({
   hasPipeline: boolean;
   onToggle: () => void;
   group: string;
+  source: string | undefined;
 }) {
   const [pipeline, setPipeline] = useState<PipelineResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -165,11 +170,11 @@ function Row({
     if (isExpanded && !pipeline && hasPipeline) {
       setLoading(true);
       api
-        .getPipeline(group, row.adapter, row.qid)
+        .getPipeline(group, row.adapter, row.qid, source)
         .then((p) => setPipeline(p))
         .finally(() => setLoading(false));
     }
-  }, [isExpanded, pipeline, hasPipeline, group, row.adapter, row.qid]);
+  }, [isExpanded, pipeline, hasPipeline, group, row.adapter, row.qid, source]);
 
   const verdict = row.judge_verdict;
   const verdictCls =

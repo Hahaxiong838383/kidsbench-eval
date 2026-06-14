@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useSource } from "../lib/sourceContext";
 import type { RunGroup } from "../lib/types";
 
 export default function Runs() {
+  const { source } = useSource();
   const [groups, setGroups] = useState<RunGroup[]>([]);
   const [adapterFilter, setAdapterFilter] = useState("");
   const [eraFilter, setEraFilter] = useState("");
@@ -13,9 +15,10 @@ export default function Runs() {
       .runGroups({
         adapter: adapterFilter || undefined,
         era: eraFilter || undefined,
+        source,
       })
       .then((r) => setGroups(r.items));
-  }, [adapterFilter, eraFilter]);
+  }, [adapterFilter, eraFilter, source]);
 
   return (
     <div className="space-y-4">

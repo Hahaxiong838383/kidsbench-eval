@@ -13,6 +13,9 @@ services:
       QDRANT_HOST: kidsbench-qdrant
       QDRANT_PORT: 6333
       KIDSBENCH_RUNS_PATH: /app/runs
+      KIDSBENCH_RUNS_PATH_AIR: /app/runs
+      KIDSBENCH_RUNS_PATH_DEV198: /app/runs-dev198
+      KIDSBENCH_DEFAULT_SOURCE: air
       KIDSBENCH_ASSISTANT_DB: /app/data/assistant.db
       CORS_ORIGINS: "https://kidsbench.cli4.hahaxiong.cc,http://192.168.61.18:18081,http://localhost:5173"
     # AI 助手密钥（网关 key / token secret / admin 密码哈希）：
@@ -21,6 +24,7 @@ services:
       - ./assistant.env
     volumes:
       - ./runs-mount:/app/runs:ro       # Air rsync 同步进来（B0 阶段先空，B1 落实）
+      - ./runs-mount-dev198:/app/runs-dev198:ro   # dev198 工作站 runs（多源切换 air/dev198）
       - ./data:/app/data                  # SQLite 等（B2 用）
     ports:
       - "18001:8000"

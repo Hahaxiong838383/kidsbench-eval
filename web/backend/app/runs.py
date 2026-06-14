@@ -30,7 +30,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException
 
-from .config import RUNS_PATH
+from . import config
 
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
@@ -96,25 +96,48 @@ def _iter_results_jsonl(path: Path):
         return
 
 
-def _iter_groups():
-    """生成 (group_name, group_dir, summary_data) 元组。"""
-    if not RUNS_PATH.exists():
+def _iter_groups(runs_path=None):
+    """生成 (group_name, group_dir, summary_data) 元组。
+
+    runs_path 省略 → 默认源（state.py 等无 source 概念的调用方走这条）。
+    """
+    if runs_path is None:
+        runs_path = config.runs_path_for(None)
+    if not runs_path.exists():
         return
-    for group_dir in sorted(RUNS_PATH.iterdir()):
+    for group_dir in sorted(runs_path.iterdir()):
         if not group_dir.is_dir():
             continue
         summary = _safe_load_json(group_dir / "summary.json")
         yield (group_dir.name, group_dir, summary)
 
 
+@router.get("/sources")
+def list_sources() -> dict:
+    """列出所有可用数据源（Air / dev198 等）及默认源。
+
+    前端顶栏数据源选择器从这里填。
+    """
+    return {
+        "sources": list(config.RUNS_SOURCES.keys()),
+        "default": config.DEFAULT_SOURCE,
+    }
+
+
 @router.get("/groups")
-def list_groups(era: str | None = None, adapter: str | None = None) -> dict:
+def list_groups(
+    era: str | None = None,
+    adapter: str | None = None,
+    source: str | None = None,
+) -> dict:
     """所有 run group 概览（适合首页 / 总览展示）。
 
     每个 group 包含：summary + items_count + mtime。
+    source: 数据源（air / dev198），不传走默认源。
     """
+    runs_path = config.runs_path_for(source)
     groups = []
-    for name, group_dir, summary in _iter_groups():
+    for name, group_dir, summary in _iter_groups(runs_path):
         target_adapter = _classify_target_adapter(name)
         era_label = _classify_era(name)
         if era and era_label != era:
@@ -138,9 +161,9 @@ def list_groups(era: str | None = None, adapter: str | None = None) -> dict:
 
 
 @router.get("/groups/{group_name}")
-def get_group(group_name: str, limit: int = 500) -> dict:
+def get_group(group_name: str, limit: int = 500, source: str | None = None) -> dict:
     """单 group 详情：summary + results.jsonl 所有行。"""
-    group_dir = RUNS_PATH / group_name
+    group_dir = config.runs_path_for(source) / group_name
     if not group_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"group not found: {group_name}")
 
@@ -164,6 +187,7 @@ def list_experiments(
     era: str | None = None,
     verdict: str | None = None,
     limit: int = 200,
+    source: str | None = None,
 ) -> dict:
     """把所有 group 的 results 拉平成 experiments 列表（按时间倒序）。
 
@@ -175,7 +199,7 @@ def list_experiments(
         limit: 返回上限
     """
     items = []
-    for name, group_dir, _summary in _iter_groups():
+    for name, group_dir, _summary in _iter_groups(config.runs_path_for(source)):
         era_label = _classify_era(name)
         if era and era_label != era:
             continue
@@ -202,7 +226,7 @@ def list_experiments(
 
 
 @router.get("/groups/{group_name}/pipeline/{adapter}/{qid}")
-def get_pipeline(group_name: str, adapter: str, qid: str) -> dict:
+def get_pipeline(group_name: str, adapter: str, qid: str, source: str | None = None) -> dict:
     """读取单个 (group, adapter, qid) 三元组的 pipeline.jsonl events。
 
     文件路径约定（harness/run_eval.py 写入）：
@@ -210,7 +234,8 @@ def get_pipeline(group_name: str, adapter: str, qid: str) -> dict:
 
     返回 events 数组，前端 PipelineTimeline 直接渲染。
     """
-    group_dir = RUNS_PATH / group_name
+    runs_path = config.runs_path_for(source)
+    group_dir = runs_path / group_name
     if not group_dir.is_dir():
         raise HTTPException(status_code=404, detail=f"group not found: {group_name}")
 
@@ -252,14 +277,14 @@ def get_pipeline(group_name: str, adapter: str, qid: str) -> dict:
         "qid": qid,
         "events": events,
         "events_count": len(events),
-        "source": str(pipeline_file.relative_to(RUNS_PATH)),
+        "source": str(pipeline_file.relative_to(runs_path)),
     }
 
 
 @router.get("/groups/{group_name}/pipelines")
-def list_pipelines(group_name: str) -> dict:
+def list_pipelines(group_name: str, source: str | None = None) -> dict:
     """列出该 group 下所有 pipeline.jsonl 文件（哪些 (adapter, qid) 有 trace 数据）。"""
-    group_dir = RUNS_PATH / group_name
+    group_dir = config.runs_path_for(source) / group_name
     pipeline_dir = group_dir / "pipelines"
     if not pipeline_dir.is_dir():
         return {"group": group_name, "pipelines": []}
@@ -294,10 +319,10 @@ def list_pipelines(group_name: str) -> dict:
 
 
 @router.get("/latest")
-def latest_per_adapter() -> dict:
+def latest_per_adapter(source: str | None = None) -> dict:
     """每个 adapter 最近一次的成绩（首页用）。"""
     by_adapter: dict[str, dict] = {}
-    for name, group_dir, summary in _iter_groups():
+    for name, group_dir, summary in _iter_groups(config.runs_path_for(source)):
         if not summary:
             continue
         mtime = group_dir.stat().st_mtime

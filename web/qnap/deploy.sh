@@ -27,9 +27,15 @@ QNAP_IP="192.168.61.18"
 # 默认 prnas（经 mini 内网 ProxyJump）。mini 内网挂时可用 KIDSBENCH_HOST_ALIAS=prnas-pub 走公网
 HOST_ALIAS="${KIDSBENCH_HOST_ALIAS:-prnas}"
 
-if [ -z "$SSHPASS" ]; then
-  echo "❌ SSHPASS env 未设。用法：SSHPASS='xxx' bash $0"
-  exit 1
+if [ -z "${SSHPASS:-}" ]; then
+  # 兜底：读 gitignored 的本地密码文件（web/qnap/.qnap-pass，chmod 600），便于一键部署
+  _PASS_FILE="$(dirname "$0")/.qnap-pass"
+  if [ -f "$_PASS_FILE" ]; then
+    SSHPASS="$(cat "$_PASS_FILE")"; export SSHPASS
+  else
+    echo "❌ SSHPASS env 未设且无 $_PASS_FILE。用法：SSHPASS='xxx' bash $0"
+    exit 1
+  fi
 fi
 
 step() { echo; echo "▶ [$1] $2"; }
@@ -55,7 +61,7 @@ ls -lh "$TAR"
 step "3/6" "QNAP 准备目录 $REMOTE_DIR"
 sshpass -e ssh "$HOST_ALIAS" "
   set -e
-  mkdir -p $REMOTE_DIR/data $REMOTE_DIR/runs-mount $REMOTE_DIR/backend $REMOTE_DIR/frontend
+  mkdir -p $REMOTE_DIR/data $REMOTE_DIR/runs-mount $REMOTE_DIR/runs-mount-dev198 $REMOTE_DIR/backend $REMOTE_DIR/frontend
 "
 
 step "4/6" "scp tar 到 QNAP"

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import ErrorBoundary from "./ErrorBoundary";
 import AssistantFab from "./assistant/AssistantFab";
 import AssistantDrawer from "./assistant/AssistantDrawer";
+import { useSource } from "../lib/sourceContext";
 
 const NAV = [
   { to: "/", label: "总览" },
@@ -23,6 +24,7 @@ const BUILD_ID =
 export default function Layout() {
   const location = useLocation();
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const { source, sources, defaultSource, setSource } = useSource();
 
   return (
     <div className="min-h-full flex flex-col">
@@ -47,6 +49,25 @@ export default function Layout() {
               </NavLink>
             ))}
           </div>
+
+          {/* 数据源切换（Air / dev198）：评测引擎两台机器各自的 run 结果 */}
+          {sources.length > 1 && (
+            <label className="flex items-center gap-1.5 text-xs text-slate-500 ml-2">
+              <span>数据源</span>
+              <select
+                value={source ?? defaultSource}
+                onChange={(e) => setSource(e.target.value)}
+                className="bg-white border border-slate-200 rounded px-2 py-1 text-sm text-slate-700"
+                title="评测引擎数据源（Air / dev198）"
+              >
+                {sources.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </nav>
 

@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+import { SourceProvider } from "./lib/sourceContext";
 import Layout from "./components/Layout";
 import Home from "./pages/Home";
 import AdapterDetail from "./pages/AdapterDetail";
@@ -16,6 +17,7 @@ import Admin from "./pages/Admin";
 
 export default function App() {
   return (
+    <SourceProvider>
     <Routes>
       <Route path="/" element={<Layout />}>
         <Route index element={<Home />} />
@@ -33,5 +35,6 @@ export default function App() {
         <Route path="admin" element={<Admin />} />
       </Route>
     </Routes>
+    </SourceProvider>
   );
 }

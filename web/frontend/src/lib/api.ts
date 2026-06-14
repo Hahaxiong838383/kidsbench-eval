@@ -37,48 +37,78 @@ export const api = {
   stateMemoryos: () => get<StateSnapshot>("/api/state/memoryos"),
   stateGraphiti: () => get<StateSnapshot>("/api/state/graphiti"),
 
-  runGroups: (params?: { adapter?: string; era?: string }) => {
+  // ===== Runs 数据源（Air / dev198 切换） =====
+  // 评测引擎从 Air 迁到 dev198，两台机器各自产出 runs。
+  // 列 runs 的函数都可带可选 source；不传走后端默认源（air），保持旧行为。
+  getSources: () =>
+    get<{ sources: string[]; default: string }>("/api/runs/sources"),
+
+  runGroups: (params?: { adapter?: string; era?: string; source?: string }) => {
     const q = new URLSearchParams();
     if (params?.adapter) q.set("adapter", params.adapter);
     if (params?.era) q.set("era", params.era);
+    if (params?.source) q.set("source", params.source);
     const qs = q.toString();
     return get<{ total: number; items: RunGroup[] }>(
       "/api/runs/groups" + (qs ? `?${qs}` : ""),
     );
   },
-  runGroup: (name: string) =>
-    get<{
+  runGroup: (name: string, source?: string) => {
+    const q = new URLSearchParams();
+    if (source) q.set("source", source);
+    const qs = q.toString();
+    return get<{
       name: string;
       target_adapter: string;
       era: string;
       summary: Record<string, import("./types").AdapterStats> | null;
       results_count: number;
       results: ExperimentRow[];
-    }>(`/api/runs/groups/${name}`),
+    }>(`/api/runs/groups/${name}` + (qs ? `?${qs}` : ""));
+  },
 
-  experiments: (params?: { adapter?: string; qid?: string; verdict?: string; limit?: number }) => {
+  experiments: (params?: {
+    adapter?: string;
+    qid?: string;
+    verdict?: string;
+    limit?: number;
+    source?: string;
+  }) => {
     const q = new URLSearchParams();
     if (params?.adapter) q.set("adapter", params.adapter);
     if (params?.qid) q.set("qid", params.qid);
     if (params?.verdict) q.set("verdict", params.verdict);
     if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.source) q.set("source", params.source);
     const qs = q.toString();
     return get<{ total: number; limit: number; items: ExperimentRow[] }>(
       "/api/runs/experiments" + (qs ? `?${qs}` : ""),
     );
   },
 
-  listPipelines: (group: string) =>
-    get<{ group: string; pipelines: PipelineListItem[]; count: number }>(
-      `/api/runs/groups/${encodeURIComponent(group)}/pipelines`,
-    ),
-  getPipeline: (group: string, adapter: string, qid: string) =>
-    get<PipelineResponse>(
-      `/api/runs/groups/${encodeURIComponent(group)}/pipeline/${encodeURIComponent(adapter)}/${encodeURIComponent(qid)}`,
-    ),
+  listPipelines: (group: string, source?: string) => {
+    const q = new URLSearchParams();
+    if (source) q.set("source", source);
+    const qs = q.toString();
+    return get<{ group: string; pipelines: PipelineListItem[]; count: number }>(
+      `/api/runs/groups/${encodeURIComponent(group)}/pipelines` + (qs ? `?${qs}` : ""),
+    );
+  },
+  getPipeline: (group: string, adapter: string, qid: string, source?: string) => {
+    const q = new URLSearchParams();
+    if (source) q.set("source", source);
+    const qs = q.toString();
+    return get<PipelineResponse>(
+      `/api/runs/groups/${encodeURIComponent(group)}/pipeline/${encodeURIComponent(adapter)}/${encodeURIComponent(qid)}` +
+        (qs ? `?${qs}` : ""),
+    );
+  },
 
-  runsLatest: () =>
-    get<{
+  runsLatest: (source?: string) => {
+    const q = new URLSearchParams();
+    if (source) q.set("source", source);
+    const qs = q.toString();
+    return get<{
       items: {
         adapter: string;
         group: string;
@@ -86,7 +116,8 @@ export const api = {
         stats: import("./types").AdapterStats;
         mtime: number;
       }[];
-    }>("/api/runs/latest"),
+    }>("/api/runs/latest" + (qs ? `?${qs}` : ""));
+  },
 
   // ===== Banks (题库上传) =====
   listBanks: () => get<BankListResponse>("/api/banks"),

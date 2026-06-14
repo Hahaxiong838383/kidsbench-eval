@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useSource } from "../lib/sourceContext";
 import type { ArchitectureIndex, RunGroup } from "../lib/types";
 
 export default function Home() {
+  const { source } = useSource();
   const [arch, setArch] = useState<ArchitectureIndex | null>(null);
   const [latestGroups, setLatestGroups] = useState<RunGroup[]>([]);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([api.architecture(), api.runGroups()])
+    Promise.all([api.architecture(), api.runGroups({ source })])
       .then(([a, g]) => {
         setArch(a);
         setLatestGroups(g.items.slice(0, 5));
       })
       .catch((e) => setErr(String(e)));
-  }, []);
+  }, [source]);
 
   if (err) return <div className="text-red-400">载入失败：{err}</div>;
   if (!arch) return <div className="text-slate-500">载入中…</div>;
