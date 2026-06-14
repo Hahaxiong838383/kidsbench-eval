@@ -61,7 +61,7 @@ function writeStored(s: string | undefined): void {
 export function SourceProvider({ children }: { children: ReactNode }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [sources, setSources] = useState<string[]>([]);
-  const [defaultSource, setDefaultSource] = useState<string>("air");
+  const [defaultSource, setDefaultSource] = useState<string>("dev198");
 
   // 真相源 = 组件状态（由 localStorage 初始化）；URL query 仅作可分享同步。
   // 初始优先级：URL ?source= > localStorage > undefined（默认 air）。
