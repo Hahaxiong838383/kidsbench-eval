@@ -253,11 +253,15 @@ def make_reme_adapter(preset: LLMPreset) -> MemoryAdapter | None:
         return None
 
     shim_url = _ensure_embedding_shim()
+    # reme 检索是多次 LLM 调用的 agentic 工具循环；gemini-3-flash-preview(thinking)
+    # 偶返 finish=length 且无 message key（reasoning 烧光预算）→agentscope agent 崩→
+    # metadata 缺 'messages'→reme 全挂。改用非 thinking 的 deepseek（满预算时也返完整
+    # message 结构,不缺 key），规避 reme agentic 循环崩溃。embedding 仍走 shim。
     return RemeAdapter(config={
         "llm": {
-            "model": preset.model,
-            "base_url": preset.base_url,
-            "api_key": preset.get_api_key(),
+            "model": "deepseek-v4-flash",
+            "base_url": "https://api.deepseek.com/v1",
+            "api_key": os.environ.get("KIDSBENCH_DEEPSEEK_API_KEY", ""),
         },
         "embedding": {
             "model": preset.embedding.model,
