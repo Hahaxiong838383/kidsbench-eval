@@ -28,6 +28,7 @@ import time
 import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
+from urllib.parse import quote
 from pathlib import Path
 
 from .span import SpanEvent, _set_exporter_internal
@@ -174,7 +175,9 @@ class HttpExporter(Exporter):
         run_id = self.run_id_getter()
         if not run_id:
             return
-        url = self.endpoint_tpl.format(run_id=run_id)
+        # run_id 可能含非 ASCII（qid 带维度符号如 ④）；URL 必须 ASCII，故 percent-encode
+        # （FastAPI 路由参数会自动解码，前后端 run_id 一致）
+        url = self.endpoint_tpl.format(run_id=quote(str(run_id), safe=""))
         payload = json.dumps([e.to_dict() for e in batch], ensure_ascii=False).encode("utf-8")
         for attempt in range(self.max_retries):
             try:
