@@ -24,6 +24,7 @@ from .llm_presets import router as llm_presets_router
 from .questionbank import router as questionbank_router
 from .runs import router as runs_router
 from .state import router as state_router
+from .sync import router as sync_router
 
 # 启动时尝试加载 .env.local（本地 dev 显示 preset configured 状态）
 # Production container 内通常没此文件，load_dotenv_local 返回 0 即可
@@ -54,6 +55,7 @@ app.add_middleware(
 app.include_router(architecture_router)
 app.include_router(state_router)
 app.include_router(runs_router)
+app.include_router(sync_router)
 app.include_router(llm_presets_router)
 app.include_router(events_router)
 app.include_router(questionbank_router)

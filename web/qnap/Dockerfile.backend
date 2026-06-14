@@ -4,6 +4,11 @@ FROM docker.1ms.run/library/python:3.12-slim
 
 WORKDIR /app
 
+# 手动同步（dev198 → QNAP pull）需要 ssh + rsync 客户端
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssh-client rsync \
+    && rm -rf /var/lib/apt/lists/*
+
 # 先装依赖（layer cache 友好）
 COPY requirements.txt .
 RUN pip install --no-cache-dir --quiet -r requirements.txt

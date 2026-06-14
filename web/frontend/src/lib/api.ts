@@ -43,6 +43,24 @@ export const api = {
   getSources: () =>
     get<{ sources: string[]; default: string }>("/api/runs/sources"),
 
+  // 手动同步：触发 QNAP 后端 pull 一次 dev198 的 runs（方案 A）
+  syncSource: async (source: string) => {
+    const res = await fetch(
+      `/api/runs/sync?source=${encodeURIComponent(source)}`,
+      { method: "POST" },
+    );
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(body?.detail ?? body?.message ?? `${res.status}`);
+    }
+    return body as {
+      ok: boolean;
+      source: string;
+      groups: number;
+      synced_at: number;
+    };
+  },
+
   runGroups: (params?: { adapter?: string; era?: string; source?: string }) => {
     const q = new URLSearchParams();
     if (params?.adapter) q.set("adapter", params.adapter);

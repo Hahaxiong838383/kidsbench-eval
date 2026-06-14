@@ -61,11 +61,22 @@ ls -lh "$TAR"
 step "3/6" "QNAP 准备目录 $REMOTE_DIR"
 sshpass -e ssh "$HOST_ALIAS" "
   set -e
-  mkdir -p $REMOTE_DIR/data $REMOTE_DIR/runs-mount $REMOTE_DIR/runs-mount-dev198 $REMOTE_DIR/backend $REMOTE_DIR/frontend
+  mkdir -p $REMOTE_DIR/data $REMOTE_DIR/runs-mount $REMOTE_DIR/runs-mount-dev198 $REMOTE_DIR/secrets $REMOTE_DIR/backend $REMOTE_DIR/frontend
 "
 
 step "4/6" "scp tar 到 QNAP"
 sshpass -e scp "$TAR" "$HOST_ALIAS:$REMOTE_DIR/"
+
+# 手动同步用的受限只读 key + known_hosts（gitignored，仅本地存在时推送）
+_SECRETS_DIR="$(dirname "$0")/secrets"
+if [ -f "$_SECRETS_DIR/sync_key" ]; then
+  echo "  → 推送同步 secrets（sync_key / known_hosts）到 QNAP"
+  sshpass -e scp "$_SECRETS_DIR/sync_key" "$HOST_ALIAS:$REMOTE_DIR/secrets/sync_key"
+  [ -f "$_SECRETS_DIR/known_hosts" ] && sshpass -e scp "$_SECRETS_DIR/known_hosts" "$HOST_ALIAS:$REMOTE_DIR/secrets/known_hosts"
+  sshpass -e ssh "$HOST_ALIAS" "chmod 600 $REMOTE_DIR/secrets/sync_key"
+else
+  echo "  ⚠ 无本地 $_SECRETS_DIR/sync_key，跳过 secrets 推送（手动同步按钮将不可用）"
+fi
 
 step "5/6a" "确保 base stack 容器加入 kidsbench-net（idempotent）"
 sshpass -e ssh "$HOST_ALIAS" "

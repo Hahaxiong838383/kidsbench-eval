@@ -4,6 +4,7 @@ import ErrorBoundary from "./ErrorBoundary";
 import AssistantFab from "./assistant/AssistantFab";
 import AssistantDrawer from "./assistant/AssistantDrawer";
 import { useSource } from "../lib/sourceContext";
+import { api } from "../lib/api";
 
 const NAV = [
   { to: "/", label: "总览" },
@@ -25,6 +26,25 @@ export default function Layout() {
   const location = useLocation();
   const [assistantOpen, setAssistantOpen] = useState(false);
   const { source, sources, defaultSource, setSource } = useSource();
+
+  // 手动同步（仅 dev198 源有意义：QNAP 容器 pull 一次 dev198 的 runs）
+  const effectiveSource = source ?? defaultSource;
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const r = await api.syncSource("dev198");
+      setSyncMsg(`✓ ${r.groups} 组`);
+      // 拉到新数据后整页重载，让各页重新 fetch（短延迟先让 ✓ 可见）
+      window.setTimeout(() => window.location.reload(), 700);
+    } catch (e) {
+      setSyncMsg(`✗ ${e instanceof Error ? e.message : "同步失败"}`);
+      setSyncing(false);
+    }
+  };
 
   return (
     <div className="min-h-full flex flex-col">
@@ -67,6 +87,21 @@ export default function Layout() {
                 ))}
               </select>
             </label>
+          )}
+
+          {/* 手动同步按钮：dev198 源时显示，点一下让 QNAP 后端 pull 一次 dev198 的 runs */}
+          {effectiveSource === "dev198" && (
+            <button
+              type="button"
+              onClick={handleSync}
+              disabled={syncing}
+              title="从 dev198 工作站拉取最新 runs 到 web"
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded border border-emerald-200 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <span className={syncing ? "animate-spin" : ""}>⟳</span>
+              <span>{syncing ? "同步中…" : "同步"}</span>
+              {syncMsg && <span className="text-slate-400 ml-1">{syncMsg}</span>}
+            </button>
           )}
         </div>
       </nav>
