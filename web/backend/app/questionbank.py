@@ -336,16 +336,18 @@ async def upload_csv(file: UploadFile) -> dict:
 
 
 @router.get("/export-analysis")
-def export_analysis(run_group: str | None = None) -> PlainTextResponse:
+def export_analysis(run_group: str | None = None,
+                    source: str | None = None) -> PlainTextResponse:
     """导出人话分析报告 MD（题库问题/评测诊断/改善建议及论证）。
 
     ?run_group=xxx 指定分析哪次运行；缺省取最新一次。
+    ?source=air/dev198 指定数据源；缺省走后端默认源。
     """
 
-    from .config import RUNS_PATH
+    from . import config
     from .qb_report import build_analysis_md
 
-    md = build_analysis_md(QUESTIONS_PATH, RUNS_PATH, run_group)
+    md = build_analysis_md(QUESTIONS_PATH, config.runs_path_for(source), run_group)
     ts = time.strftime("%Y%m%d_%H%M")
     return PlainTextResponse(
         md, media_type="text/markdown; charset=utf-8",
@@ -354,22 +356,26 @@ def export_analysis(run_group: str | None = None) -> PlainTextResponse:
 
 
 @router.get("/leaderboard")
-def leaderboard(prefix: str = "v01_full") -> dict:
-    """评测总榜：跨 run 聚合 + 自动发现（人话）。web 显示与 MD 导出同源。"""
-    from .config import RUNS_PATH
+def leaderboard(prefix: str = "v01_full", source: str | None = None) -> dict:
+    """评测总榜：跨 run 聚合 + 自动发现（人话）。web 显示与 MD 导出同源。
+
+    source: 数据源（air / dev198），不传走后端默认源。历史评分快照只存在于
+    评测引擎产出它们的那台机器（如 Air），切到对应源才能看到。
+    """
+    from . import config
     from .qb_report import build_leaderboard
 
     questions = _load_jsonl(_bank_paths()["jsonl"])
-    return build_leaderboard(RUNS_PATH, questions, prefix)
+    return build_leaderboard(config.runs_path_for(source), questions, prefix)
 
 
 @router.get("/leaderboard/history")
-def leaderboard_history() -> dict:
+def leaderboard_history(source: str | None = None) -> dict:
     """评测历史：全部快照列表 + 系统×快照对比矩阵（含最近一次升降）。"""
-    from .config import RUNS_PATH
+    from . import config
     from .qb_report import history_matrix, load_snapshots
 
-    snaps = load_snapshots(RUNS_PATH)
+    snaps = load_snapshots(config.runs_path_for(source))
     return {
         "total": len(snaps),
         "snapshots": [
@@ -382,12 +388,12 @@ def leaderboard_history() -> dict:
 
 
 @router.get("/leaderboard/history/{snapshot_id}")
-def leaderboard_snapshot(snapshot_id: str) -> dict:
+def leaderboard_snapshot(snapshot_id: str, source: str | None = None) -> dict:
     """单个历史快照详情（完整榜单+当时的发现）。"""
-    from .config import RUNS_PATH
+    from . import config
     from .qb_report import load_snapshots
 
-    snap = next((s for s in load_snapshots(RUNS_PATH)
+    snap = next((s for s in load_snapshots(config.runs_path_for(source))
                  if s["snapshot_id"] == snapshot_id), None)
     if snap is None:
         raise HTTPException(404, f"快照 {snapshot_id} 不存在")
@@ -396,14 +402,14 @@ def leaderboard_snapshot(snapshot_id: str) -> dict:
 
 @router.post("/leaderboard/snapshot")
 def create_snapshot(prefix: str = "v01_full", label: str = "",
-                    notes: str = "") -> dict:
+                    notes: str = "", source: str | None = None) -> dict:
     """归档当前聚合榜单为历史快照（每轮评测跑完调用一次）。"""
-    from .config import RUNS_PATH
+    from . import config
     from .qb_report import save_snapshot
 
     questions = _load_jsonl(_bank_paths()["jsonl"])
     try:
-        snap = save_snapshot(RUNS_PATH, questions, prefix,
+        snap = save_snapshot(config.runs_path_for(source), questions, prefix,
                              label or f"评测批次 {prefix}", notes)
     except ValueError as e:
         raise HTTPException(422, str(e)) from e

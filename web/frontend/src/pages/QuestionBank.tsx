@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useSource } from "../lib/sourceContext";
 
 // ---- 类型（与 backend questionbank.py 对齐）----
 type PipelineStep = { step: number; term: string; plain: string; detail: string };
@@ -97,6 +98,9 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 export default function QuestionBank() {
+  // 数据源（air / dev198）：评分榜单/历史按源读。评测历史快照只存在于
+  // 产出它的那台机器（如 Air），切到对应源才看得到。
+  const { source, defaultSource } = useSource();
   const [ov, setOv] = useState<Overview | null>(null);
   const [fixes, setFixes] = useState<FixItem[] | null>(null);
   const [fixesNote, setFixesNote] = useState("");
@@ -109,10 +113,14 @@ export default function QuestionBank() {
   const [uploadErr, setUploadErr] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const sourceQuery = source ? `?source=${encodeURIComponent(source)}` : "";
+
   useEffect(() => {
+    // overview / fixes / paradigm 是题库本身的元数据，不随数据源变；
+    // leaderboard / history 按 source 读（评分历史随源切换）。
     getJSON<Overview>("/api/questionbank").then(setOv);
-    getJSON<Leaderboard>("/api/questionbank/leaderboard").then(setLb);
-    getJSON<History>("/api/questionbank/leaderboard/history").then(setHist);
+    getJSON<Leaderboard>(`/api/questionbank/leaderboard${sourceQuery}`).then(setLb);
+    getJSON<History>(`/api/questionbank/leaderboard/history${sourceQuery}`).then(setHist);
     getJSON<ParadigmCoverage>("/api/questionbank/paradigm-coverage").then(setPc);
     getJSON<{ note: string; items: FixItem[] }>("/api/questionbank/fixes").then(
       (d) => {
@@ -120,7 +128,7 @@ export default function QuestionBank() {
         setFixesNote(d.note);
       },
     );
-  }, []);
+  }, [sourceQuery]);
 
   async function onUpload(f: File) {
     setUploading(true);
@@ -155,7 +163,7 @@ export default function QuestionBank() {
           </p>
         </div>
         <a
-          href="/api/questionbank/export-analysis"
+          href={`/api/questionbank/export-analysis${sourceQuery}`}
           className="px-4 py-2 rounded border border-emerald-600 text-emerald-700 text-sm hover:bg-emerald-50"
           download
         >
@@ -289,6 +297,18 @@ export default function QuestionBank() {
             <summary className="cursor-pointer">为什么榜单上回避数看着这么多？</summary>
             <p className="mt-1">{ov.verdict.why_so_many}</p>
           </details>
+        </section>
+      )}
+
+      {/* ===== 评测总榜：空状态引导（当前源无完整榜单时提示切 air）===== */}
+      {lb && lb.board.length === 0 && (
+        <section className="card space-y-2">
+          <h2 className="text-lg font-semibold">评测总榜 / 历史</h2>
+          <p className="text-sm text-slate-600">
+            当前数据源「<b>{source ?? defaultSource}</b>」暂无完整评测榜单与历史快照。
+            完整的评分历史记录在 <b>air</b> 源（评测引擎产出历史快照的那台机器）——
+            点右上角「数据源」切到 <b>air</b> 即可查看完整榜单与历次评测对比。
+          </p>
         </section>
       )}
 
